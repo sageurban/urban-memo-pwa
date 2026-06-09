@@ -137,3 +137,17 @@ This update focuses on visual clarity and daily usability without adding new dat
 - Improved Audio Timeline color coding by section/type/energy.
 - Improved empty states with clearer calls to action.
 - Kept existing Supabase schema unchanged.
+
+## v5.6 Visual Match & Detail Design Polish
+
+이번 버전은 기능 추가 없이 디자인 시스템과 세부 UI를 목업 스타일에 더 가깝게 다듬은 버전입니다.
+
+- Deep navy / violet / cyan 기반 다크 디자인 시스템 적용
+- Folder Explorer, 인라인 메모, 접힌 사이드바 아이콘 레일 시각 개선
+- 메인 에디터 카드형 레이아웃, 메타데이터, 텍스트 에디터, MP3 카드 톤 통일
+- Audio Timeline 구간 색상, Energy Graph, Marker Row 시각 개선
+- Chord Transpose 플로팅 위젯을 고급 유틸리티 패널 스타일로 개선
+- 버튼, 배지, 태그, hover, active 상태 통일
+- 모바일에서도 같은 색감과 카드톤 유지
+
+Supabase SQL 변경은 필요 없습니다.
