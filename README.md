@@ -54,3 +54,31 @@ variation_idea text
 ```
 
 Existing notes, audio files, and markers are preserved.
+
+
+## Stage 4: Dashboard + Chord Transpose Tool
+
+This version adds a music-data dashboard and a chord transpose utility.
+
+### Included
+- Library overview cards: total notes, audio markers, MP3 files, chord sources.
+- Type usage dashboard.
+- BPM distribution dashboard.
+- Key usage dashboard.
+- Genre top dashboard.
+- Genre / mood matrix.
+- Top tags.
+- Section chord progression list.
+- Chord Transpose Tool:
+  - Original Key / Target Key
+  - Slash chord support
+  - 7th, 9th, add9, sus, dim, aug style suffix preservation
+  - Copy result
+  - Save as Chord Progression note
+
+### Not included
+- Harmonic Usage dashboard is intentionally excluded in this version.
+
+### Supabase
+No new SQL is required if Stage 1–3 SQL has already been applied.
+This update uses existing `notes.metadata`, `notes.note_type`, `audio_files`, and `audio_markers`.

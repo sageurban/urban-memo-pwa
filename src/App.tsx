@@ -3,6 +3,7 @@ import { Session } from '@supabase/supabase-js';
 import Auth from './components/Auth';
 import NoteEditor from './components/NoteEditor';
 import NoteList from './components/NoteList';
+import MusicDashboard from './components/MusicDashboard';
 import { supabase } from './lib/supabase';
 import { AudioFile, AudioMarker, Folder, Note, SaveStatus } from './types/note';
 import { AdvancedFilters, defaultMetadataForTypes, defaultTitleForTypes, EMPTY_ADVANCED_FILTERS, MusicMetadata, normalizeTemplateTypes, NoteType, splitTags, templateContentForTypes } from './lib/musicTemplates';
@@ -770,6 +771,67 @@ export default function App() {
     }
   }
 
+
+  async function handleSaveTransposedChordNote(payload: {
+    originalKey: string;
+    targetKey: string;
+    originalProgression: string;
+    transposedProgression: string;
+    content: string;
+  }) {
+    if (!session?.user.id) return;
+
+    setErrorMessage('');
+    const now = new Date().toISOString();
+    const optimisticNote: Note = {
+      id: crypto.randomUUID(),
+      user_id: session.user.id,
+      folder_id: selectedFolderId !== 'all' && selectedFolderId !== 'unfiled' ? selectedFolderId : null,
+      note_type: 'chord_progression',
+      metadata: {
+        key: payload.targetKey,
+        section: 'Chorus',
+        instrument: 'Keys',
+        confidence: 'Medium',
+        tags: 'transpose, chord progression',
+        source: `Transposed from ${payload.originalKey}`
+      },
+      title: `Transposed Chord Idea - ${payload.targetKey}`,
+      content: payload.content,
+      is_pinned: false,
+      is_archived: false,
+      deleted_at: null,
+      created_at: now,
+      updated_at: now
+    };
+
+    setNotes((prev) => [optimisticNote, ...prev]);
+    setSelectedNoteId(optimisticNote.id);
+    setMobileView('editor');
+
+    const { data, error } = await supabase
+      .from('notes')
+      .insert({
+        user_id: session.user.id,
+        folder_id: optimisticNote.folder_id,
+        note_type: optimisticNote.note_type,
+        metadata: optimisticNote.metadata,
+        title: optimisticNote.title,
+        content: optimisticNote.content
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      setErrorMessage(error.message);
+      setNotes((prev) => prev.filter((note) => note.id !== optimisticNote.id));
+      return;
+    }
+
+    setNotes((prev) => prev.map((note) => (note.id === optimisticNote.id ? { ...data, note_type: data.note_type ?? 'general', metadata: data.metadata ?? {} } as Note : note)));
+    setSelectedNoteId(data.id);
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
   }
@@ -824,6 +886,18 @@ export default function App() {
         </header>
 
         {errorMessage && <div className="error-banner">{errorMessage}</div>}
+
+        <MusicDashboard
+          notes={notes}
+          audioFiles={audioFiles}
+          audioMarkers={audioMarkers}
+          onApplyFilters={(nextFilters, nextTypeFilter = 'all') => {
+            setAdvancedFilters((current) => ({ ...current, ...nextFilters }));
+            setTypeFilter(nextTypeFilter);
+            setMobileView('folders');
+          }}
+          onSaveTransposedChordNote={handleSaveTransposedChordNote}
+        />
 
         <NoteEditor
           note={selectedNote}
