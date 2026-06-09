@@ -249,8 +249,12 @@ export default function App() {
     setAudioMarkers((data ?? []).map((marker) => ({
       ...marker,
       time_seconds: Number(marker.time_seconds),
+      end_seconds: marker.end_seconds == null ? null : Number(marker.end_seconds),
       bar_count: marker.bar_count ?? null,
-      energy: marker.energy ?? null
+      energy: marker.energy ?? null,
+      reusable_idea: marker.reusable_idea ?? '',
+      caution: marker.caution ?? '',
+      variation_idea: marker.variation_idea ?? ''
     })) as AudioMarker[]);
   }, [session?.user.id]);
 
@@ -640,6 +644,7 @@ export default function App() {
     note_id: string;
     audio_file_id: string | null;
     time_seconds: number;
+    end_seconds: number | null;
     section_name: string;
     marker_type: string;
     title: string;
@@ -647,6 +652,9 @@ export default function App() {
     chord_progression: string;
     bar_count: number | null;
     energy: number | null;
+    reusable_idea: string;
+    caution: string;
+    variation_idea: string;
   }) {
     if (!session?.user.id) return;
 
@@ -658,6 +666,7 @@ export default function App() {
       note_id: values.note_id,
       audio_file_id: values.audio_file_id,
       time_seconds: Number(values.time_seconds) || 0,
+      end_seconds: values.end_seconds == null ? null : Number(values.end_seconds),
       section_name: values.section_name,
       marker_type: values.marker_type,
       title: values.title,
@@ -665,6 +674,9 @@ export default function App() {
       chord_progression: values.chord_progression,
       bar_count: values.bar_count,
       energy: values.energy,
+      reusable_idea: values.reusable_idea,
+      caution: values.caution,
+      variation_idea: values.variation_idea,
       created_at: now,
       updated_at: now
     };
@@ -678,13 +690,17 @@ export default function App() {
         note_id: values.note_id,
         audio_file_id: values.audio_file_id,
         time_seconds: values.time_seconds,
+        end_seconds: values.end_seconds,
         section_name: values.section_name,
         marker_type: values.marker_type,
         title: values.title,
         description: values.description,
         chord_progression: values.chord_progression,
         bar_count: values.bar_count,
-        energy: values.energy
+        energy: values.energy,
+        reusable_idea: values.reusable_idea,
+        caution: values.caution,
+        variation_idea: values.variation_idea
       })
       .select('*')
       .single();
@@ -698,13 +714,22 @@ export default function App() {
     setAudioMarkers((prev) =>
       prev.map((marker) =>
         marker.id === optimisticMarker.id
-          ? { ...data, time_seconds: Number(data.time_seconds), bar_count: data.bar_count ?? null, energy: data.energy ?? null }
+          ? {
+              ...data,
+              time_seconds: Number(data.time_seconds),
+              end_seconds: data.end_seconds == null ? null : Number(data.end_seconds),
+              bar_count: data.bar_count ?? null,
+              energy: data.energy ?? null,
+              reusable_idea: data.reusable_idea ?? '',
+              caution: data.caution ?? '',
+              variation_idea: data.variation_idea ?? ''
+            }
           : marker
       )
     );
   }
 
-  async function handleUpdateAudioMarker(markerId: string, values: Partial<Pick<AudioMarker, 'audio_file_id' | 'time_seconds' | 'section_name' | 'marker_type' | 'title' | 'description' | 'chord_progression' | 'bar_count' | 'energy'>>) {
+  async function handleUpdateAudioMarker(markerId: string, values: Partial<Pick<AudioMarker, 'audio_file_id' | 'time_seconds' | 'end_seconds' | 'section_name' | 'marker_type' | 'title' | 'description' | 'chord_progression' | 'bar_count' | 'energy' | 'reusable_idea' | 'caution' | 'variation_idea'>>) {
     setErrorMessage('');
     const now = new Date().toISOString();
 

@@ -5,6 +5,7 @@ import { getNoteTypeOption, MusicMetadata, splitTags } from '../lib/musicTemplat
 type MarkerDraft = {
   audio_file_id: string;
   time_seconds: string;
+  end_seconds: string;
   section_name: string;
   marker_type: string;
   title: string;
@@ -12,6 +13,9 @@ type MarkerDraft = {
   chord_progression: string;
   bar_count: string;
   energy: string;
+  reusable_idea: string;
+  caution: string;
+  variation_idea: string;
 };
 
 type NoteEditorProps = {
@@ -30,6 +34,7 @@ type NoteEditorProps = {
     note_id: string;
     audio_file_id: string | null;
     time_seconds: number;
+    end_seconds: number | null;
     section_name: string;
     marker_type: string;
     title: string;
@@ -37,8 +42,11 @@ type NoteEditorProps = {
     chord_progression: string;
     bar_count: number | null;
     energy: number | null;
+    reusable_idea: string;
+    caution: string;
+    variation_idea: string;
   }) => void;
-  onUpdateAudioMarker: (markerId: string, values: Partial<Pick<AudioMarker, 'audio_file_id' | 'time_seconds' | 'section_name' | 'marker_type' | 'title' | 'description' | 'chord_progression' | 'bar_count' | 'energy'>>) => void;
+  onUpdateAudioMarker: (markerId: string, values: Partial<Pick<AudioMarker, 'audio_file_id' | 'time_seconds' | 'end_seconds' | 'section_name' | 'marker_type' | 'title' | 'description' | 'chord_progression' | 'bar_count' | 'energy' | 'reusable_idea' | 'caution' | 'variation_idea'>>) => void;
   onDeleteAudioMarker: (marker: AudioMarker) => void;
   onTogglePin: (note: Note) => void;
   onDeleteNote: (note: Note) => void;
@@ -58,13 +66,17 @@ const FONT_SIZE_OPTIONS = [
 const EMPTY_MARKER_DRAFT: MarkerDraft = {
   audio_file_id: '',
   time_seconds: '0',
+  end_seconds: '',
   section_name: 'Intro',
   marker_type: 'Song Form',
   title: '',
   description: '',
   chord_progression: '',
   bar_count: '',
-  energy: ''
+  energy: '',
+  reusable_idea: '',
+  caution: '',
+  variation_idea: ''
 };
 
 function statusText(status: SaveStatus) {
@@ -106,30 +118,39 @@ function markerDraftFromMarker(marker: AudioMarker): MarkerDraft {
   return {
     audio_file_id: marker.audio_file_id ?? '',
     time_seconds: String(Math.round(Number(marker.time_seconds) || 0)),
+    end_seconds: marker.end_seconds == null ? '' : String(Math.round(Number(marker.end_seconds) || 0)),
     section_name: marker.section_name ?? '',
     marker_type: marker.marker_type ?? 'Song Form',
     title: marker.title ?? '',
     description: marker.description ?? '',
     chord_progression: marker.chord_progression ?? '',
     bar_count: marker.bar_count == null ? '' : String(marker.bar_count),
-    energy: marker.energy == null ? '' : String(marker.energy)
+    energy: marker.energy == null ? '' : String(marker.energy),
+    reusable_idea: marker.reusable_idea ?? '',
+    caution: marker.caution ?? '',
+    variation_idea: marker.variation_idea ?? ''
   };
 }
 
 function markerPayloadFromDraft(noteId: string, draft: MarkerDraft) {
   const barCount = Number(draft.bar_count);
   const energy = Number(draft.energy);
+  const endSeconds = Number(draft.end_seconds);
   return {
     note_id: noteId,
     audio_file_id: draft.audio_file_id || null,
     time_seconds: Math.max(0, Number(draft.time_seconds) || 0),
+    end_seconds: draft.end_seconds === '' || !Number.isFinite(endSeconds) ? null : Math.max(0, endSeconds),
     section_name: draft.section_name.trim(),
     marker_type: draft.marker_type.trim() || 'Song Form',
     title: draft.title.trim(),
     description: draft.description.trim(),
     chord_progression: draft.chord_progression.trim(),
     bar_count: draft.bar_count === '' || !Number.isFinite(barCount) ? null : barCount,
-    energy: draft.energy === '' || !Number.isFinite(energy) ? null : Math.max(0, Math.min(100, energy))
+    energy: draft.energy === '' || !Number.isFinite(energy) ? null : Math.max(0, Math.min(100, energy)),
+    reusable_idea: draft.reusable_idea.trim(),
+    caution: draft.caution.trim(),
+    variation_idea: draft.variation_idea.trim()
   };
 }
 
@@ -211,6 +232,9 @@ export default function NoteEditor({
   const [markerDraft, setMarkerDraft] = useState<MarkerDraft>(EMPTY_MARKER_DRAFT);
   const [editingMarkerId, setEditingMarkerId] = useState<string | null>(null);
   const [editingMarkerDraft, setEditingMarkerDraft] = useState<MarkerDraft>(EMPTY_MARKER_DRAFT);
+  const [markerTypeFilter, setMarkerTypeFilter] = useState('All');
+  const [loopMarkerId, setLoopMarkerId] = useState<string | null>(null);
+  const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
@@ -224,6 +248,8 @@ export default function NoteEditor({
     setFontSize('3');
     setMetadata(note?.metadata ?? {});
     setEditingMarkerId(null);
+    setMarkerTypeFilter('All');
+    setLoopMarkerId(null);
   }, [note?.id]);
 
   useEffect(() => {
@@ -264,6 +290,19 @@ export default function NoteEditor({
     () => [...audioMarkers].sort((a, b) => Number(a.time_seconds) - Number(b.time_seconds)),
     [audioMarkers]
   );
+
+  const visibleMarkers = useMemo(
+    () => markerTypeFilter === 'All' ? sortedMarkers : sortedMarkers.filter((marker) => marker.marker_type === markerTypeFilter),
+    [sortedMarkers, markerTypeFilter]
+  );
+
+  const timelineDuration = useMemo(() => {
+    const audioDuration = Math.max(0, ...Object.values(audioDurations).filter(Number.isFinite));
+    const markerDuration = Math.max(0, ...sortedMarkers.map((marker) => Number(marker.end_seconds ?? marker.time_seconds) || 0));
+    return Math.max(audioDuration, markerDuration, 1);
+  }, [audioDurations, sortedMarkers]);
+
+  const markerFilterOptions = useMemo(() => ['All', ...MARKER_TYPES.filter((type) => sortedMarkers.some((marker) => marker.marker_type === type))], [sortedMarkers]);
 
   function syncEditorContent() {
     setContent(editorRef.current?.innerHTML ?? '');
@@ -358,13 +397,43 @@ export default function NoteEditor({
     audioElement.play().catch(() => undefined);
   }
 
+  function handleAudioLoaded(fileId: string, audioElement: HTMLAudioElement | null) {
+    if (!audioElement) return;
+    const duration = Number.isFinite(audioElement.duration) ? audioElement.duration : 0;
+    setAudioDurations((prev) => ({ ...prev, [fileId]: duration }));
+  }
+
+  function handleAudioTimeUpdate(fileId: string, audioElement: HTMLAudioElement | null) {
+    if (!audioElement || !loopMarkerId) return;
+    const marker = sortedMarkers.find((item) => item.id === loopMarkerId);
+    if (!marker) return;
+    const markerAudioId = marker.audio_file_id || audioFiles[0]?.id;
+    if (markerAudioId !== fileId) return;
+    const start = Number(marker.time_seconds) || 0;
+    const end = Number(marker.end_seconds);
+    if (!Number.isFinite(end) || end <= start) return;
+    if (audioElement.currentTime >= end) {
+      audioElement.currentTime = start;
+      audioElement.play().catch(() => undefined);
+    }
+  }
+
+  function toggleMarkerLoop(marker: AudioMarker) {
+    const start = Number(marker.time_seconds) || 0;
+    const end = Number(marker.end_seconds);
+    if (!Number.isFinite(end) || end <= start) return;
+    setLoopMarkerId((current) => current === marker.id ? null : marker.id);
+    seekToMarker(marker);
+  }
+
   function submitMarker() {
     if (!note) return;
     onCreateAudioMarker(markerPayloadFromDraft(note.id, markerDraft));
     setMarkerDraft({
       ...EMPTY_MARKER_DRAFT,
       audio_file_id: markerDraft.audio_file_id || audioFiles[0]?.id || '',
-      time_seconds: markerDraft.time_seconds
+      time_seconds: markerDraft.time_seconds,
+      end_seconds: ''
     });
   }
 
@@ -378,13 +447,17 @@ export default function NoteEditor({
     onUpdateAudioMarker(marker.id, {
       audio_file_id: payload.audio_file_id,
       time_seconds: payload.time_seconds,
+      end_seconds: payload.end_seconds,
       section_name: payload.section_name,
       marker_type: payload.marker_type,
       title: payload.title,
       description: payload.description,
       chord_progression: payload.chord_progression,
       bar_count: payload.bar_count,
-      energy: payload.energy
+      energy: payload.energy,
+      reusable_idea: payload.reusable_idea,
+      caution: payload.caution,
+      variation_idea: payload.variation_idea
     });
     setEditingMarkerId(null);
   }
@@ -508,7 +581,15 @@ export default function NoteEditor({
                   <div className="audio-file-icon">♫</div>
                   <div className="audio-info"><strong>{file.file_name}</strong><span>{[formatBytes(file.file_size), formatDate(file.created_at)].filter(Boolean).join(' • ')}</span></div>
                   <div className="audio-row-actions">
-                    {file.signed_url ? <audio ref={(el) => { audioRefs.current[file.id] = el; }} controls src={file.signed_url} /> : <span className="muted">Audio URL loading...</span>}
+                    {file.signed_url ? (
+                      <audio
+                        ref={(el) => { audioRefs.current[file.id] = el; }}
+                        controls
+                        src={file.signed_url}
+                        onLoadedMetadata={(event) => handleAudioLoaded(file.id, event.currentTarget)}
+                        onTimeUpdate={(event) => handleAudioTimeUpdate(file.id, event.currentTarget)}
+                      />
+                    ) : <span className="muted">Audio URL loading...</span>}
                     <button type="button" className="ghost-button danger" onClick={() => onDeleteAudio(file)}>삭제</button>
                   </div>
                 </article>
@@ -519,14 +600,64 @@ export default function NoteEditor({
 
         <section className="editor-card timeline-panel">
           <div className="timeline-header">
-            <div><strong>Audio Timeline Analysis</strong><span>송폼, 코드, 리듬, 편곡 포인트를 MP3 시간에 연결합니다.</span></div>
+            <div><strong>Audio Timeline Analysis v2</strong><span>송폼 타임라인, 에너지, A-B Loop, 재사용 아이디어까지 한 번에 관리합니다.</span></div>
             <span className="timeline-count">{sortedMarkers.length} markers</span>
+          </div>
+
+          {sortedMarkers.length > 0 && (
+            <div className="timeline-visual-card">
+              <div className="timeline-track" aria-label="Song form timeline">
+                {visibleMarkers.map((marker) => {
+                  const start = Number(marker.time_seconds) || 0;
+                  const end = Number(marker.end_seconds ?? marker.time_seconds) || start;
+                  const left = Math.min(96, Math.max(0, (start / timelineDuration) * 100));
+                  const width = Math.max(3, ((Math.max(end, start + 2) - start) / timelineDuration) * 100);
+                  return (
+                    <button
+                      type="button"
+                      key={marker.id}
+                      className={`timeline-segment ${loopMarkerId === marker.id ? 'looping' : ''}`}
+                      style={{ left: `${left}%`, width: `${Math.min(width, 100 - left)}%` }}
+                      onClick={() => seekToMarker(marker)}
+                      title={`${formatTime(marker.time_seconds)} ${marker.section_name || marker.marker_type}`}
+                    >
+                      <strong>{marker.section_name || marker.marker_type}</strong>
+                      <span>{formatTime(marker.time_seconds)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="energy-graph">
+                {sortedMarkers.filter((marker) => marker.energy != null).map((marker) => (
+                  <button type="button" key={marker.id} onClick={() => seekToMarker(marker)}>
+                    <span>{marker.section_name || marker.marker_type}</span>
+                    <i><b style={{ width: `${Math.max(0, Math.min(100, Number(marker.energy) || 0))}%` }} /></i>
+                    <em>{marker.energy}</em>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="marker-filter-bar">
+            {markerFilterOptions.map((type) => (
+              <button
+                type="button"
+                key={type}
+                className={markerTypeFilter === type ? 'active' : ''}
+                onClick={() => setMarkerTypeFilter(type)}
+              >
+                {type}
+              </button>
+            ))}
           </div>
 
           <div className="marker-create-card">
             <div className="marker-create-top">
               <label>MP3<select value={markerDraft.audio_file_id} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, audio_file_id: event.target.value }))}><option value="">No audio selected</option>{audioFiles.map((file) => <option key={file.id} value={file.id}>{file.file_name}</option>)}</select></label>
-              <label>Time<input type="number" min="0" value={markerDraft.time_seconds} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, time_seconds: event.target.value }))} /></label>
+              <label>Start<input type="number" min="0" value={markerDraft.time_seconds} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, time_seconds: event.target.value }))} /></label>
+              <label>End<input type="number" min="0" value={markerDraft.end_seconds} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, end_seconds: event.target.value }))} placeholder="Loop end" /></label>
               <button type="button" onClick={captureCurrentTime} disabled={audioFiles.length === 0}>현재 위치 가져오기</button>
             </div>
             <div className="marker-grid">
@@ -537,15 +668,18 @@ export default function NoteEditor({
               <label className="marker-wide">Title<input value={markerDraft.title} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Chorus drop" /></label>
               <label className="marker-wide">Chord<input value={markerDraft.chord_progression} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, chord_progression: event.target.value }))} placeholder="Bmaj9 - F#/A# - G#m7 - Emaj9" /></label>
               <label className="marker-wide">Description<textarea value={markerDraft.description} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, description: event.target.value }))} placeholder="Full drum groove, bright synth hook, vocal stack enters." /></label>
+              <label className="marker-wide">Reusable Idea<textarea value={markerDraft.reusable_idea} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, reusable_idea: event.target.value }))} placeholder="내 곡에 가져올 수 있는 요소" /></label>
+              <label className="marker-wide">Caution<textarea value={markerDraft.caution} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, caution: event.target.value }))} placeholder="그대로 쓰면 위험한 요소" /></label>
+              <label className="marker-wide">Variation<textarea value={markerDraft.variation_idea} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, variation_idea: event.target.value }))} placeholder="변형 아이디어" /></label>
             </div>
             <button type="button" className="add-marker-button" onClick={submitMarker} disabled={!note}>＋ 현재 위치에 마커 추가</button>
           </div>
 
           <div className="marker-list">
-            {sortedMarkers.length === 0 ? (
+            {visibleMarkers.length === 0 ? (
               <div className="audio-empty">아직 타임라인 마커가 없습니다. MP3를 재생하고 현재 위치를 가져와 첫 마커를 추가하세요.</div>
             ) : (
-              sortedMarkers.map((marker) => {
+              visibleMarkers.map((marker) => {
                 const isEditing = editingMarkerId === marker.id;
                 return (
                   <article className="marker-row" key={marker.id}>
@@ -553,13 +687,17 @@ export default function NoteEditor({
                     {isEditing ? (
                       <div className="marker-edit-panel">
                         <div className="marker-grid">
-                          <label>Time<input type="number" min="0" value={editingMarkerDraft.time_seconds} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, time_seconds: event.target.value }))} /></label>
+                          <label>Start<input type="number" min="0" value={editingMarkerDraft.time_seconds} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, time_seconds: event.target.value }))} /></label>
+                          <label>End<input type="number" min="0" value={editingMarkerDraft.end_seconds} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, end_seconds: event.target.value }))} /></label>
                           <label>Section<input value={editingMarkerDraft.section_name} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, section_name: event.target.value }))} /></label>
                           <label>Type<select value={editingMarkerDraft.marker_type} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, marker_type: event.target.value }))}>{MARKER_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
                           <label>Energy<input type="number" min="0" max="100" value={editingMarkerDraft.energy} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, energy: event.target.value }))} /></label>
                           <label className="marker-wide">Title<input value={editingMarkerDraft.title} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, title: event.target.value }))} /></label>
                           <label className="marker-wide">Chord<input value={editingMarkerDraft.chord_progression} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, chord_progression: event.target.value }))} /></label>
                           <label className="marker-wide">Description<textarea value={editingMarkerDraft.description} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, description: event.target.value }))} /></label>
+                          <label className="marker-wide">Reusable Idea<textarea value={editingMarkerDraft.reusable_idea} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, reusable_idea: event.target.value }))} /></label>
+                          <label className="marker-wide">Caution<textarea value={editingMarkerDraft.caution} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, caution: event.target.value }))} /></label>
+                          <label className="marker-wide">Variation<textarea value={editingMarkerDraft.variation_idea} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, variation_idea: event.target.value }))} /></label>
                         </div>
                         <div className="marker-actions"><button type="button" onClick={() => saveEditMarker(marker)}>Save</button><button type="button" className="ghost-button" onClick={() => setEditingMarkerId(null)}>Cancel</button></div>
                       </div>
@@ -570,12 +708,24 @@ export default function NoteEditor({
                           <p>{marker.description || 'No description yet'}</p>
                           <div className="marker-meta-line">
                             {marker.section_name && <span>{marker.section_name}</span>}
+                            {marker.end_seconds != null && <span>{formatTime(marker.time_seconds)}~{formatTime(marker.end_seconds)}</span>}
                             {marker.bar_count != null && <span>{marker.bar_count} bars</span>}
                             {marker.energy != null && <span>Energy {marker.energy}</span>}
                             {marker.chord_progression && <span>{marker.chord_progression}</span>}
                           </div>
+                          {(marker.reusable_idea || marker.caution || marker.variation_idea) && (
+                            <div className="marker-idea-box">
+                              {marker.reusable_idea && <p><strong>Reusable</strong>{marker.reusable_idea}</p>}
+                              {marker.caution && <p><strong>Caution</strong>{marker.caution}</p>}
+                              {marker.variation_idea && <p><strong>Variation</strong>{marker.variation_idea}</p>}
+                            </div>
+                          )}
                         </div>
-                        <div className="marker-actions"><button type="button" onClick={() => startEditMarker(marker)}>Edit</button><button type="button" className="danger ghost-button" onClick={() => onDeleteAudioMarker(marker)}>Delete</button></div>
+                        <div className="marker-actions">
+                          {marker.end_seconds != null && Number(marker.end_seconds) > Number(marker.time_seconds) && <button type="button" className={loopMarkerId === marker.id ? 'active-loop' : ''} onClick={() => toggleMarkerLoop(marker)}>{loopMarkerId === marker.id ? 'Loop On' : 'A-B Loop'}</button>}
+                          <button type="button" onClick={() => startEditMarker(marker)}>Edit</button>
+                          <button type="button" className="danger ghost-button" onClick={() => onDeleteAudioMarker(marker)}>Delete</button>
+                        </div>
                       </>
                     )}
                   </article>

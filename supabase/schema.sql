@@ -92,6 +92,7 @@ create table if not exists public.audio_markers (
   note_id uuid not null references public.notes(id) on delete cascade,
   audio_file_id uuid references public.audio_files(id) on delete set null,
   time_seconds numeric not null default 0,
+  end_seconds numeric,
   section_name text not null default '',
   marker_type text not null default 'Song Form',
   title text not null default '',
@@ -108,6 +109,9 @@ add column if not exists audio_file_id uuid references public.audio_files(id) on
 
 alter table public.audio_markers
 add column if not exists time_seconds numeric not null default 0;
+
+alter table public.audio_markers
+add column if not exists end_seconds numeric;
 
 alter table public.audio_markers
 add column if not exists section_name text not null default '';
@@ -129,6 +133,15 @@ add column if not exists bar_count integer;
 
 alter table public.audio_markers
 add column if not exists energy integer;
+
+alter table public.audio_markers
+add column if not exists reusable_idea text not null default '';
+
+alter table public.audio_markers
+add column if not exists caution text not null default '';
+
+alter table public.audio_markers
+add column if not exists variation_idea text not null default '';
 
 create index if not exists audio_markers_user_note_time_idx
 on public.audio_markers (user_id, note_id, time_seconds asc);

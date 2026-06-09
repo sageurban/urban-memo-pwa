@@ -2999,3 +2999,203 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* Audio Timeline Analysis v2 */
+.timeline-visual-card {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 22px;
+  background: rgba(255,255,255,0.025);
+}
+
+.timeline-track {
+  position: relative;
+  min-height: 86px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 22px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  overflow: hidden;
+}
+
+.timeline-track::before {
+  content: '';
+  position: absolute;
+  inset: 50% 14px auto;
+  height: 1px;
+  background: rgba(255,255,255,0.1);
+}
+
+.timeline-segment {
+  position: absolute;
+  top: 14px;
+  min-width: 72px;
+  max-width: 220px;
+  height: 58px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(180deg, rgba(255, 93, 93, 0.92), rgba(205, 48, 48, 0.88));
+  color: white;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  text-align: left;
+  overflow: hidden;
+}
+
+.timeline-segment.looping {
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.18), 0 0 34px rgba(255, 82, 82, 0.35);
+}
+
+.timeline-segment strong,
+.timeline-segment span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.timeline-segment strong {
+  font-size: 13px;
+}
+
+.timeline-segment span {
+  opacity: 0.82;
+  font-size: 12px;
+}
+
+.energy-graph {
+  display: grid;
+  gap: 8px;
+}
+
+.energy-graph button {
+  display: grid;
+  grid-template-columns: minmax(80px, 140px) 1fr 38px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text);
+  text-align: left;
+}
+
+.energy-graph button:hover,
+.marker-filter-bar button:hover,
+.marker-actions .active-loop:hover {
+  transform: none;
+}
+
+.energy-graph span {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.energy-graph i {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.07);
+  overflow: hidden;
+}
+
+.energy-graph b {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff6b61, #ffd15a);
+}
+
+.energy-graph em {
+  color: var(--text);
+  font-style: normal;
+  font-weight: 800;
+  text-align: right;
+}
+
+.marker-filter-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.marker-filter-bar button {
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.marker-filter-bar button.active {
+  color: #fff;
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.16);
+}
+
+.marker-idea-box {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.025);
+}
+
+.marker-idea-box p {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.marker-idea-box strong {
+  color: var(--text);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.marker-actions .active-loop {
+  background: linear-gradient(180deg, #ff746b, #e84f4f);
+  color: white;
+  border-color: transparent;
+}
+
+.marker-grid textarea {
+  min-height: 72px;
+}
+
+@media (max-width: 760px) {
+  .timeline-visual-card {
+    padding: 12px;
+  }
+
+  .timeline-track {
+    min-height: 96px;
+    overflow-x: auto;
+  }
+
+  .timeline-segment {
+    min-width: 82px;
+    height: 64px;
+  }
+
+  .energy-graph button {
+    grid-template-columns: 90px 1fr 34px;
+    gap: 8px;
+  }
+
+  .marker-filter-bar {
+    margin-inline: -4px;
+    padding-inline: 4px;
+  }
+}

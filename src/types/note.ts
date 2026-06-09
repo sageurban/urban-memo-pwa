@@ -44,6 +44,7 @@ export type AudioMarker = {
   note_id: string;
   audio_file_id: string | null;
   time_seconds: number;
+  end_seconds: number | null;
   section_name: string;
   marker_type: string;
   title: string;
@@ -51,6 +52,9 @@ export type AudioMarker = {
   chord_progression: string;
   bar_count: number | null;
   energy: number | null;
+  reusable_idea: string;
+  caution: string;
+  variation_idea: string;
   created_at: string;
   updated_at: string;
 };

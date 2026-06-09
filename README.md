@@ -30,3 +30,27 @@ git push
 ## Required Supabase update
 
 This version adds `audio_markers` table and RLS policies. Run `supabase/schema.sql` once.
+
+## Urban Music Library v3.2 — Audio Timeline Analysis v2
+
+This update extends Audio Timeline Analysis with:
+
+- Visual song-form timeline based on audio markers
+- Marker type filter: All / Song Form / Chord / Rhythm / Arrangement / Sound Design, etc.
+- Energy graph using each marker's energy value
+- A-B Loop using marker start/end time
+- End time field for markers
+- Reusable Idea / Caution / Variation Idea fields for composition reuse
+
+### Supabase SQL required
+
+Run `supabase/schema.sql` again in Supabase SQL Editor. This update adds these columns to `audio_markers`:
+
+```sql
+end_seconds numeric
+reusable_idea text
+caution text
+variation_idea text
+```
+
+Existing notes, audio files, and markers are preserved.
