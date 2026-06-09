@@ -15,23 +15,39 @@ type NoteEditorProps = {
 
 type FolderOption = Folder & { depth: number };
 
+const TEXT_COLOR_PRESETS = ['#f4f0e8', '#ff5a5a', '#ffca45', '#6ccd57', '#5891ff'];
+const FONT_SIZE_OPTIONS = [
+  { label: '가', value: '2', title: 'Small' },
+  { label: '가', value: '3', title: 'Normal' },
+  { label: '가', value: '5', title: 'Large' }
+] as const;
+
 function statusText(status: SaveStatus) {
   switch (status) {
     case 'saving':
-      return 'Saving...';
+      return '저장 중';
     case 'saved':
-      return 'Saved';
+      return '저장됨';
     case 'error':
-      return 'Save failed';
+      return '저장 실패';
     default:
-      return 'Ready';
+      return '준비됨';
   }
 }
 
 function formatBytes(bytes: number | null) {
   if (!bytes) return '';
   const mb = bytes / 1024 / 1024;
-  return `${mb.toFixed(mb >= 10 ? 1 : 2)} MB`;
+  return `${mb.toFixed(mb >= 10 ? 1 : 2)}MB`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) return '';
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date(value));
 }
 
 function escapeHtml(value: string) {
@@ -96,7 +112,7 @@ export default function NoteEditor({
 }: NoteEditorProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [textColor, setTextColor] = useState('#f5f5f5');
+  const [textColor, setTextColor] = useState(TEXT_COLOR_PRESETS[0]);
   const [fontSize, setFontSize] = useState('3');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -106,7 +122,9 @@ export default function NoteEditor({
     const nextContent = normalizeContentForEditor(note?.content ?? '');
     setContent(nextContent);
     if (editorRef.current) editorRef.current.innerHTML = nextContent;
-  }, [note?.id]);
+    setTextColor(TEXT_COLOR_PRESETS[0]);
+    setFontSize('3');
+  }, [note?.id, note?.content]);
 
   useEffect(() => {
     if (!note) return;
@@ -119,21 +137,32 @@ export default function NoteEditor({
     return () => window.clearTimeout(timer);
   }, [title, content, note, onUpdateNote]);
 
-  const wordCount = useMemo(() => {
+  const characterCount = useMemo(() => {
     const text = getTextFromHtml(content).trim();
-    return text ? text.split(/\s+/).length : 0;
+    return text.length;
   }, [content]);
 
   const folderOptions = useMemo(() => buildFolderOptions(folders), [folders]);
+  const currentFolder = folderOptions.find((folder) => folder.id === note?.folder_id) ?? null;
 
   function syncEditorContent() {
     setContent(editorRef.current?.innerHTML ?? '');
   }
 
-  function applyCommand(command: 'foreColor' | 'fontSize', value: string) {
+  function applyCommand(command: string, value?: string) {
     editorRef.current?.focus();
     document.execCommand(command, false, value);
     syncEditorContent();
+  }
+
+  function applyColor(value: string) {
+    setTextColor(value);
+    applyCommand('foreColor', value);
+  }
+
+  function applyFontSize(value: string) {
+    setFontSize(value);
+    applyCommand('fontSize', value);
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -146,134 +175,187 @@ export default function NoteEditor({
 
   if (!note) {
     return (
-      <section className="editor empty-editor">
+      <section className="editor empty-editor editor-redesign-shell">
         <h2>메모를 선택하거나 새로 만들어주세요.</h2>
-        <p>Mac에서는 왼쪽 리스트, iPhone에서는 상단 리스트에서 메모를 선택하면 됩니다.</p>
+        <p>왼쪽 폴더/메모 리스트에서 선택하면 이 화면에서 바로 편집할 수 있습니다.</p>
       </section>
     );
   }
 
   return (
-    <section className="editor rich-editor-layout">
-      <div className="editor-toolbar">
-        <span className={`save-status ${saveStatus}`}>{statusText(saveStatus)}</span>
-        <span>{wordCount} words</span>
-      </div>
-
-      <div className="note-meta-bar">
-        <label>
-          Folder
-          <select
-            value={note.folder_id ?? ''}
-            onChange={(event) => onChangeNoteFolder(note.id, event.target.value || null)}
-          >
-            <option value="">Unfiled</option>
-            {folderOptions.map((folder) => (
-              <option key={folder.id} value={folder.id}>
-                {`${'— '.repeat(folder.depth)}${folder.name}`}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <input
-        className="title-input"
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        placeholder="Title"
-      />
-
-      <div className="format-toolbar" aria-label="Text formatting tools">
-        <label>
-          Text color
-          <input
-            type="color"
-            value={textColor}
-            onChange={(event) => {
-              setTextColor(event.target.value);
-              applyCommand('foreColor', event.target.value);
-            }}
-          />
-        </label>
-
-        <label>
-          Text size
-          <select
-            value={fontSize}
-            onChange={(event) => {
-              setFontSize(event.target.value);
-              applyCommand('fontSize', event.target.value);
-            }}
-          >
-            <option value="2">Small</option>
-            <option value="3">Normal</option>
-            <option value="5">Large</option>
-            <option value="7">Huge</option>
-          </select>
-        </label>
-
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand('fontSize', '3')}>
-          Normal
-        </button>
-      </div>
-
-      <div
-        ref={editorRef}
-        className="content-editor"
-        contentEditable
-        role="textbox"
-        aria-label="Note content"
-        data-placeholder="Start writing..."
-        onInput={syncEditorContent}
-        onBlur={syncEditorContent}
-        suppressContentEditableWarning
-        dangerouslySetInnerHTML={{ __html: content }}
-      />
-
-      <section className="audio-panel">
-        <div className="audio-panel-header">
-          <div>
-            <strong>MP3 Files</strong>
-            <span>{audioFiles.length} attached</span>
+    <section className="editor rich-editor-layout editor-redesign-shell">
+      <div className="editor-phone-frame">
+        <div className="editor-mobile-topline">
+          <button type="button" className="mobile-nav-button">‹</button>
+          <div className="editor-mobile-title">
+            <strong>메모 편집</strong>
+            <span><i>☁</i> {statusText(saveStatus)} • 방금 전</span>
           </div>
-          <button type="button" onClick={() => fileInputRef.current?.click()}>
-            Upload MP3
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="audio/mpeg,audio/mp3,.mp3"
-            onChange={handleFileChange}
-            hidden
-          />
+          <div className="mobile-action-group">
+            <button type="button" className="mobile-nav-button">✓</button>
+            <button type="button" className="mobile-nav-button">⋮</button>
+          </div>
         </div>
 
-        {audioUploadStatus && <p className="audio-status">{audioUploadStatus}</p>}
+        <div className="editor-card title-card">
+          <input
+            className="title-input title-input-redesign"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="제목을 입력하세요"
+            maxLength={100}
+          />
+          <span className="title-count">{title.length}/100</span>
+        </div>
 
-        {audioFiles.length === 0 ? (
-          <div className="audio-empty">이 메모에 저장된 MP3가 아직 없습니다.</div>
-        ) : (
-          <div className="audio-list">
-            {audioFiles.map((file) => (
-              <article className="audio-row" key={file.id}>
-                <div className="audio-info">
-                  <strong>{file.file_name}</strong>
-                  <span>{formatBytes(file.file_size)}</span>
-                </div>
-                {file.signed_url ? (
-                  <audio controls src={file.signed_url} />
-                ) : (
-                  <span className="muted">Audio URL loading...</span>
-                )}
-                <button type="button" className="danger ghost-button" onClick={() => onDeleteAudio(file)}>
-                  Delete MP3
-                </button>
-              </article>
-            ))}
+        <div className="editor-card folder-card">
+          <div className="folder-card-left">
+            <span className="folder-card-icon">⌂</span>
+            <span>폴더</span>
           </div>
-        )}
-      </section>
+          <label className="folder-select-pill">
+            <span className="folder-select-dot" style={{ background: currentFolder?.color || '#ff5a5a' }} />
+            <select
+              value={note.folder_id ?? ''}
+              onChange={(event) => onChangeNoteFolder(note.id, event.target.value || null)}
+            >
+              <option value="">Unfiled</option>
+              {folderOptions.map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {`${'— '.repeat(folder.depth)}${folder.name}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="editor-card controls-card">
+          <div className="controls-grid">
+            <div className="control-block">
+              <span className="control-label">텍스트 크기</span>
+              <div className="size-chip-row">
+                {FONT_SIZE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`size-chip size-${option.value} ${fontSize === option.value ? 'active' : ''}`}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => applyFontSize(option.value)}
+                    title={option.title}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="control-block">
+              <span className="control-label">텍스트 색상</span>
+              <div className="color-swatch-row">
+                {TEXT_COLOR_PRESETS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    className={`color-swatch ${textColor === color ? 'active' : ''}`}
+                    style={{ background: color }}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => applyColor(color)}
+                    aria-label={`텍스트 색상 ${color}`}
+                  >
+                    {textColor === color ? '✓' : ''}
+                  </button>
+                ))}
+                <label className="color-swatch custom-color-button" aria-label="사용자 지정 색상">
+                  +
+                  <input
+                    type="color"
+                    value={textColor}
+                    onChange={(event) => applyColor(event.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="editor-card toolbar-card">
+          <div className="toolbar-icon-row">
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand('bold')}><strong>B</strong></button>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand('italic')}><em>I</em></button>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand('underline')}><u>U</u></button>
+            <span className="toolbar-divider" />
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand('insertUnorderedList')}>•≡</button>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand('insertOrderedList')}>1≡</button>
+            <span className="toolbar-divider" />
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand('justifyLeft')}>≣</button>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand('justifyCenter')}>≣</button>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand('justifyRight')}>≣</button>
+          </div>
+        </div>
+
+        <div className="editor-card content-card">
+          <div
+            ref={editorRef}
+            className="content-editor content-editor-redesign"
+            contentEditable
+            role="textbox"
+            aria-label="Note content"
+            data-placeholder="메모를 입력하세요..."
+            onInput={syncEditorContent}
+            onBlur={syncEditorContent}
+            suppressContentEditableWarning
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
+          <span className="content-count">{characterCount}/1,000</span>
+        </div>
+
+        <section className="editor-card audio-panel audio-panel-redesign">
+          <div className="audio-panel-header audio-panel-header-redesign">
+            <div>
+              <strong>MP3 파일</strong>
+              <span>전체 {audioFiles.length}개</span>
+            </div>
+            <button type="button" className="upload-mp3-inline" onClick={() => fileInputRef.current?.click()}>
+              ＋ MP3 파일 추가
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/mpeg,audio/mp3,.mp3"
+              onChange={handleFileChange}
+              hidden
+            />
+          </div>
+
+          {audioUploadStatus && <p className="audio-status">{audioUploadStatus}</p>}
+
+          {audioFiles.length === 0 ? (
+            <div className="audio-empty">이 메모에 저장된 MP3가 아직 없습니다.</div>
+          ) : (
+            <div className="audio-list audio-list-redesign">
+              {audioFiles.map((file) => (
+                <article className="audio-row audio-row-redesign" key={file.id}>
+                  <div className="audio-file-icon">♫</div>
+                  <div className="audio-info">
+                    <strong>{file.file_name}</strong>
+                    <span>{[formatBytes(file.file_size), formatDate(file.created_at)].filter(Boolean).join(' • ')}</span>
+                  </div>
+                  <div className="audio-row-actions">
+                    {file.signed_url ? (
+                      <audio controls src={file.signed_url} />
+                    ) : (
+                      <span className="muted">Audio URL loading...</span>
+                    )}
+                    <button type="button" className="ghost-button danger" onClick={() => onDeleteAudio(file)}>
+                      삭제
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </section>
   );
 }

@@ -1529,3 +1529,493 @@ button:disabled {
     grid-template-columns: 26px minmax(0,1fr) 32px;
   }
 }
+
+/* Note editor redesign + mobile parity */
+.main-panel {
+  background: radial-gradient(circle at top, rgba(42, 58, 86, 0.18), transparent 35%), #08090d;
+}
+
+.top-bar {
+  height: auto;
+  min-height: 74px;
+  padding: 18px 24px;
+  background: rgba(8, 9, 13, 0.72);
+  backdrop-filter: blur(16px);
+}
+
+.editor-redesign-shell {
+  display: block;
+  overflow: auto;
+  padding: 22px 26px 30px;
+}
+
+.editor-phone-frame {
+  width: min(100%, 880px);
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.editor-mobile-topline {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobile-nav-button {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 22px;
+}
+
+.mobile-action-group {
+  display: flex;
+  gap: 8px;
+}
+
+.editor-mobile-title {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.editor-mobile-title strong {
+  font-size: 18px;
+  letter-spacing: -0.03em;
+}
+
+.editor-mobile-title span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.editor-mobile-title i {
+  font-style: normal;
+}
+
+.editor-card {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+.title-card {
+  position: relative;
+  padding: 0;
+}
+
+.title-input-redesign {
+  width: 100%;
+  padding: 22px 22px;
+  padding-right: 92px;
+  font-size: clamp(24px, 4vw, 44px);
+  background: transparent;
+  border: 0;
+}
+
+.title-input-redesign:focus {
+  background: transparent;
+  border: 0;
+}
+
+.title-count,
+.content-count {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.folder-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.folder-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.folder-card-icon {
+  width: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.folder-select-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: min(320px, 58%);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.03);
+}
+
+.folder-select-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.folder-select-pill select {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  appearance: none;
+  outline: none;
+  font: inherit;
+}
+
+.controls-card {
+  padding: 18px;
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 18px;
+}
+
+.control-block {
+  display: grid;
+  gap: 10px;
+}
+
+.control-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.size-chip-row,
+.color-swatch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.size-chip {
+  min-width: 56px;
+  height: 42px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  color: var(--text);
+}
+
+.size-chip.active {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.14);
+}
+
+.size-2 { font-size: 18px; }
+.size-3 { font-size: 24px; }
+.size-5 { font-size: 28px; }
+
+.color-swatch {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  padding: 0;
+  border: 2px solid rgba(255,255,255,0.1);
+  color: #111;
+  font-weight: 800;
+}
+
+.color-swatch.active {
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.12);
+}
+
+.custom-color-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--text);
+  background: rgba(255,255,255,0.03);
+}
+
+.custom-color-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.toolbar-card {
+  padding: 10px 12px;
+}
+
+.toolbar-icon-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.toolbar-icon-row button {
+  min-width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 22px;
+}
+
+.toolbar-icon-row button:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 26px;
+  background: rgba(255,255,255,0.08);
+  margin: 0 4px;
+}
+
+.content-card {
+  position: relative;
+  padding: 0;
+}
+
+.content-editor-redesign {
+  min-height: 360px;
+  border: 0;
+  background: transparent;
+  padding: 22px;
+  padding-bottom: 48px;
+}
+
+.content-editor-redesign:focus {
+  border: 0;
+  background: transparent;
+}
+
+.audio-panel-redesign {
+  padding: 18px;
+}
+
+.audio-panel-header-redesign {
+  align-items: center;
+}
+
+.upload-mp3-inline {
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text);
+}
+
+.audio-list-redesign {
+  gap: 10px;
+}
+
+.audio-row-redesign {
+  grid-template-columns: 60px minmax(0, 1fr) minmax(220px, 360px);
+  padding: 14px;
+  background: rgba(255,255,255,0.025);
+}
+
+.audio-file-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #ff746b, #ea4f4f);
+  color: white;
+  font-size: 26px;
+}
+
+.audio-row-actions {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.audio-row-actions audio {
+  width: 100%;
+}
+
+@media (max-width: 1080px) {
+  .app-shell {
+    grid-template-columns: 360px 1fr;
+  }
+
+  .audio-row-redesign {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .audio-row-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    height: auto;
+    max-height: none;
+    min-height: 48vh;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .main-panel {
+    min-height: auto;
+  }
+
+  .top-bar {
+    padding: 12px 16px;
+  }
+
+  .top-bar strong {
+    font-size: 14px;
+  }
+
+  .editor-redesign-shell {
+    padding: 14px 16px 20px;
+  }
+
+  .editor-phone-frame {
+    width: 100%;
+    gap: 12px;
+  }
+
+  .editor-mobile-topline {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .mobile-nav-button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .title-input-redesign {
+    padding: 18px 18px 18px 18px;
+    padding-right: 80px;
+    font-size: 22px;
+  }
+
+  .title-count,
+  .content-count {
+    right: 14px;
+    bottom: 14px;
+    font-size: 12px;
+  }
+
+  .folder-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .folder-select-pill {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .controls-card,
+  .audio-panel-redesign {
+    padding: 14px;
+  }
+
+  .controls-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .size-chip {
+    min-width: 50px;
+    height: 38px;
+  }
+
+  .color-swatch,
+  .custom-color-button {
+    width: 34px;
+    height: 34px;
+  }
+
+  .toolbar-card {
+    padding: 10px;
+  }
+
+  .toolbar-icon-row {
+    justify-content: space-between;
+  }
+
+  .toolbar-icon-row button {
+    min-width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .toolbar-divider {
+    display: none;
+  }
+
+  .content-editor-redesign {
+    min-height: 300px;
+    padding: 18px;
+    padding-bottom: 44px;
+    font-size: 16px;
+  }
+
+  .audio-panel-header-redesign {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .upload-mp3-inline {
+    width: 100%;
+  }
+
+  .audio-row-redesign {
+    grid-template-columns: 48px 1fr;
+    gap: 10px;
+  }
+
+  .audio-file-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+    border-radius: 14px;
+  }
+
+  .audio-row-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr;
+  }
+
+  .audio-row-actions .ghost-button {
+    width: 100%;
+  }
+}
