@@ -551,6 +551,7 @@ export default function App() {
         onSelectNote={(note) => setSelectedNoteId(note.id)}
         onCreateNote={handleCreateNote}
         onTogglePin={handleTogglePin}
+        onChangeNoteFolder={handleChangeNoteFolder}
         onDeleteNote={handleDeleteNote}
       />
 

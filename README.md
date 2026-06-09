@@ -1,40 +1,47 @@
 # Urban Memo PWA
 
-Personal synced memo app for Mac + iPhone.
+React + Vite + Supabase 기반의 개인용 Mac/iPhone 연동 메모장입니다.
 
-## Current features
+## Included features
 
-- Supabase magic-link login
-- Notes with auto-save
-- Folder organization
-- Nested folders / subfolders
-- Folder name colors
-- Rich text note body
-  - selected text color
-  - selected text size
-- MP3 upload per note
-- Private Supabase Storage bucket for MP3 files
+- Supabase Magic Link login
+- Folder creation
+- Nested folders
+- Folder color editing
+- Folder collapse / expand controls
+- Collapse all / expand all folder tree controls
+- Move folders into other folders or back to top level
+- Move notes into another folder or Unfiled
+- Rich text memo editor
+- Text color changes inside notes
+- Text size changes inside notes
+- MP3 upload, playback, and deletion per note
 - PWA install support
 
-## Setup
+## Update notes
 
-1. Copy `.env.example` to `.env`.
-2. Fill in:
+This version does not require a new SQL migration if you already applied the previous nested-folder version.
+It uses the existing `folders.parent_id`, `folders.color`, and `notes.folder_id` columns.
+
+If you have not applied the previous folder/MP3/nested-folder SQL yet, run `supabase/schema.sql` in Supabase SQL Editor.
+
+## Local setup
+
+Create `.env` in the project root:
 
 ```env
-VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_PUBLISHABLE_OR_ANON_KEY
+VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY
 ```
 
-3. Run `supabase/schema.sql` in Supabase SQL Editor.
-4. Install and run:
+Install and run:
 
 ```bash
 npm install
 npm run dev
 ```
 
-5. Build test:
+Build check:
 
 ```bash
 npm run build
@@ -42,16 +49,8 @@ npm run build
 
 ## Deploy
 
-Push to GitHub, then deploy on Vercel.
-Add the same environment variables to Vercel:
+Push to GitHub and redeploy on Vercel.
+Make sure Vercel has these environment variables:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-
-After deployment, add your Vercel URL to Supabase:
-
-Authentication → URL Configuration → Site URL / Redirect URLs.
-
-## Important
-
-Do not upload `.env` to GitHub.

@@ -803,3 +803,153 @@ button:disabled {
     grid-template-columns: 1fr 30px 30px 30px;
   }
 }
+
+/* Folder collapse + move update */
+.folder-panel-header > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-tree-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.folder-tree-controls button {
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.folder-tree-controls button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.folder-row-wrap {
+  grid-template-columns: 26px minmax(0, 1fr) 32px 32px auto 32px;
+}
+
+.folder-collapse {
+  width: 26px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.folder-collapse:not(:disabled):hover {
+  border-color: var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  transform: none;
+}
+
+.folder-collapse:disabled {
+  color: #4c4c4c;
+  cursor: default;
+}
+
+.folder-move {
+  height: 32px;
+  padding: 0 9px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.folder-move:hover {
+  color: var(--text);
+  background: var(--panel-2);
+  transform: none;
+}
+
+.folder-move-panel,
+.note-move-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(16, 16, 16, 0.84);
+}
+
+.folder-move-panel label,
+.note-move-panel label {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.folder-move-panel select,
+.note-move-panel select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #101010;
+  color: var(--text);
+  padding: 8px 10px;
+  outline: none;
+}
+
+.folder-move-panel button,
+.note-move-panel button {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.note-move-panel {
+  margin-top: 2px;
+}
+
+.note-row-actions {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 760px) {
+  .folder-panel-header {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .folder-row-wrap {
+    grid-template-columns: 24px minmax(0, 1fr) 30px 30px auto 30px;
+    gap: 4px;
+  }
+
+  .folder-collapse,
+  .folder-child,
+  .folder-delete,
+  .folder-color-input {
+    width: 30px;
+    height: 30px;
+  }
+
+  .folder-move {
+    padding: 0 7px;
+    font-size: 10px;
+  }
+
+  .folder-move-panel,
+  .note-move-panel {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+}

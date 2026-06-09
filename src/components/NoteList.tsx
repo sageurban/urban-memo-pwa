@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Folder, Note } from '../types/note';
 
 type FolderFilter = 'all' | 'unfiled' | string;
@@ -18,12 +18,15 @@ type NoteListProps = {
   onSelectNote: (note: Note) => void;
   onCreateNote: () => void;
   onTogglePin: (note: Note) => void;
+  onChangeNoteFolder: (noteId: string, folderId: string | null) => void;
   onDeleteNote: (note: Note) => void;
 };
 
 type FolderNode = Folder & { children: FolderNode[]; depth: number };
 
 type FolderOption = Folder & { depth: number };
+
+const COLLAPSED_STORAGE_KEY = 'urban-memo-collapsed-folders';
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('ko-KR', {
@@ -71,8 +74,12 @@ function flattenFolderTree(nodes: FolderNode[]): FolderOption[] {
 }
 
 function collectDescendantIds(folderId: string, folders: Folder[]) {
-  const ids = new Set<string>([folderId]);
+  const ids = new Set<string>();
   let changed = true;
+
+  folders.forEach((folder) => {
+    if (folder.parent_id === folderId) ids.add(folder.id);
+  });
 
   while (changed) {
     changed = false;
@@ -85,6 +92,28 @@ function collectDescendantIds(folderId: string, folders: Folder[]) {
   }
 
   return ids;
+}
+
+function collectSelfAndDescendantIds(folderId: string, folders: Folder[]) {
+  const ids = collectDescendantIds(folderId, folders);
+  ids.add(folderId);
+  return ids;
+}
+
+function loadCollapsedFolders() {
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_STORAGE_KEY);
+    if (!raw) return new Set<string>();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set<string>();
+    return new Set(parsed.filter((item) => typeof item === 'string'));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function saveCollapsedFolders(ids: Set<string>) {
+  window.localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...ids]));
 }
 
 export default function NoteList({
@@ -102,19 +131,32 @@ export default function NoteList({
   onSelectNote,
   onCreateNote,
   onTogglePin,
+  onChangeNoteFolder,
   onDeleteNote
 }: NoteListProps) {
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderColor, setNewFolderColor] = useState('#f4f0e8');
   const [newFolderParentId, setNewFolderParentId] = useState('');
+  const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => loadCollapsedFolders());
+  const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
+  const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
 
   const folderTree = useMemo(() => buildFolderTree(folders), [folders]);
   const folderOptions = useMemo(() => flattenFolderTree(folderTree), [folderTree]);
 
+  useEffect(() => {
+    setCollapsedFolderIds((prev) => {
+      const validIds = new Set(folders.map((folder) => folder.id));
+      const next = new Set([...prev].filter((id) => validIds.has(id)));
+      if (next.size !== prev.size) saveCollapsedFolders(next);
+      return next;
+    });
+  }, [folders]);
+
   const noteCountByFolder = useMemo(() => {
     const counts: Record<string, number> = {};
     folders.forEach((folder) => {
-      const ids = collectDescendantIds(folder.id, folders);
+      const ids = collectSelfAndDescendantIds(folder.id, folders);
       counts[folder.id] = allNotes.filter((note) => note.folder_id && ids.has(note.folder_id)).length;
     });
     counts.unfiled = allNotes.filter((note) => note.folder_id === null).length;
@@ -134,10 +176,71 @@ export default function NoteList({
     setNewFolderColor(folder.color || '#f4f0e8');
   }
 
+  function updateCollapsedFolders(next: Set<string>) {
+    setCollapsedFolderIds(next);
+    saveCollapsedFolders(next);
+  }
+
+  function collapseFolder(folder: Folder) {
+    const next = new Set(collapsedFolderIds);
+    next.add(folder.id);
+    updateCollapsedFolders(next);
+  }
+
+  function expandFolderAndDescendants(folder: Folder) {
+    const idsToOpen = collectSelfAndDescendantIds(folder.id, folders);
+    const next = new Set([...collapsedFolderIds].filter((id) => !idsToOpen.has(id)));
+    updateCollapsedFolders(next);
+  }
+
+  function collapseAllFolders() {
+    updateCollapsedFolders(new Set(folders.map((folder) => folder.id)));
+  }
+
+  function expandAllFolders() {
+    updateCollapsedFolders(new Set());
+  }
+
+  function getFolderMoveOptions(folder: Folder) {
+    const blockedIds = collectSelfAndDescendantIds(folder.id, folders);
+    return folderOptions.filter((option) => !blockedIds.has(option.id));
+  }
+
+  function handleMoveFolder(folder: Folder, nextParentId: string) {
+    const parentId = nextParentId || null;
+    if (parentId === folder.parent_id) {
+      setMovingFolderId(null);
+      return;
+    }
+    onUpdateFolder(folder, { parent_id: parentId });
+    setMovingFolderId(null);
+  }
+
+  function handleMoveNote(note: Note, nextFolderId: string) {
+    const folderId = nextFolderId || null;
+    onChangeNoteFolder(note.id, folderId);
+    setMovingNoteId(null);
+  }
+
   function renderFolderNode(node: FolderNode) {
+    const isCollapsed = collapsedFolderIds.has(node.id);
+    const hasChildren = node.children.length > 0;
+    const moveOptions = getFolderMoveOptions(node);
+
     return (
       <div className="folder-node" key={node.id}>
         <div className="folder-row-wrap" style={{ paddingLeft: `${node.depth * 14}px` }}>
+          <button
+            type="button"
+            className="folder-collapse"
+            onClick={() => (isCollapsed ? expandFolderAndDescendants(node) : collapseFolder(node))}
+            disabled={!hasChildren}
+            title={hasChildren ? (isCollapsed ? '하위 폴더 모두 열기' : '하위 폴더 접기') : '하위 폴더 없음'}
+            aria-label={hasChildren ? (isCollapsed ? '하위 폴더 모두 열기' : '하위 폴더 접기') : '하위 폴더 없음'}
+          >
+            {hasChildren ? (isCollapsed ? '▸' : '▾') : '•'}
+          </button>
+
           <button
             type="button"
             className={`folder-row ${selectedFolderId === node.id ? 'active' : ''}`}
@@ -149,6 +252,7 @@ export default function NoteList({
             </span>
             <em>{noteCountByFolder[node.id] ?? 0}</em>
           </button>
+
           <input
             className="folder-color-input"
             type="color"
@@ -156,6 +260,7 @@ export default function NoteList({
             onChange={(event) => onUpdateFolder(node, { color: event.target.value })}
             title="Change folder color"
           />
+
           <button
             type="button"
             className="folder-child"
@@ -164,6 +269,16 @@ export default function NoteList({
           >
             +
           </button>
+
+          <button
+            type="button"
+            className="folder-move"
+            onClick={() => setMovingFolderId((current) => (current === node.id ? null : node.id))}
+            title="Move folder"
+          >
+            Move
+          </button>
+
           <button
             type="button"
             className="folder-delete"
@@ -173,7 +288,27 @@ export default function NoteList({
             ×
           </button>
         </div>
-        {node.children.map(renderFolderNode)}
+
+        {movingFolderId === node.id && (
+          <div className="folder-move-panel" style={{ marginLeft: `${node.depth * 14 + 28}px` }}>
+            <label>
+              Move to
+              <select value={node.parent_id ?? ''} onChange={(event) => handleMoveFolder(node, event.target.value)}>
+                <option value="">Top level</option>
+                {moveOptions.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {`${'— '.repeat(folder.depth)}${folder.name}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" onClick={() => setMovingFolderId(null)}>
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {!isCollapsed && node.children.map(renderFolderNode)}
       </div>
     );
   }
@@ -192,8 +327,18 @@ export default function NoteList({
 
       <section className="folder-panel" aria-label="Folders">
         <div className="folder-panel-header">
-          <strong>Folders</strong>
-          <span>{folders.length}</span>
+          <div>
+            <strong>Folders</strong>
+            <span>{folders.length}</span>
+          </div>
+          <div className="folder-tree-controls">
+            <button type="button" onClick={collapseAllFolders} disabled={folders.length === 0}>
+              접기
+            </button>
+            <button type="button" onClick={expandAllFolders} disabled={folders.length === 0}>
+              열기
+            </button>
+          </div>
         </div>
 
         <button
@@ -276,10 +421,35 @@ export default function NoteList({
                   <button type="button" onClick={() => onTogglePin(note)}>
                     {note.is_pinned ? 'Unpin' : 'Pin'}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setMovingNoteId((current) => (current === note.id ? null : note.id))}
+                  >
+                    Move
+                  </button>
                   <button type="button" className="danger" onClick={() => onDeleteNote(note)}>
                     Delete
                   </button>
                 </div>
+
+                {movingNoteId === note.id && (
+                  <div className="note-move-panel" onClick={(event) => event.stopPropagation()}>
+                    <label>
+                      Move to
+                      <select value={note.folder_id ?? ''} onChange={(event) => handleMoveNote(note, event.target.value)}>
+                        <option value="">Unfiled</option>
+                        {folderOptions.map((folder) => (
+                          <option key={folder.id} value={folder.id}>
+                            {`${'— '.repeat(folder.depth)}${folder.name}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button type="button" onClick={() => setMovingNoteId(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </article>
             );
           })
