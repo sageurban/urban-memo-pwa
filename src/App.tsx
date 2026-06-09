@@ -198,6 +198,7 @@ export default function App() {
   const [chordToolSeed, setChordToolSeed] = useState('');
   const [chordToolOpenSignal, setChordToolOpenSignal] = useState(0);
   const [recentWork, setRecentWork] = useState<RecentWorkItem[]>(() => loadRecentWork());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const selectedNote = useMemo(() => {
     return notes.find((note) => note.id === selectedNoteId) ?? null;
@@ -955,7 +956,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app-shell main-view-${mainView} mobile-view-${mobileView}`}>
+    <div className={`app-shell main-view-${mainView} mobile-view-${mobileView} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <NoteList
         notes={filteredNotes}
         allNotes={notes}
@@ -984,6 +985,8 @@ export default function App() {
         onAdvancedFiltersChange={setAdvancedFilters}
         onClearAdvancedFilters={clearAllFilters}
         recentWork={recentWork}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
         onSelectRecentWork={(noteId) => {
           const note = notes.find((item) => item.id === noteId);
           if (!note) return;

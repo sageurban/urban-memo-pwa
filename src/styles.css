@@ -5166,3 +5166,190 @@ select,
     min-height: 360px;
   }
 }
+
+/* v5.5: folder-inline notes + collapsible left desk */
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+.sidebar.is-collapsed {
+  width: 72px;
+  min-width: 72px;
+  overflow: hidden;
+  padding: 12px 8px;
+}
+
+.sidebar.is-collapsed .left-desk-brand > div,
+.sidebar.is-collapsed .folder-panel,
+.sidebar.is-collapsed .left-desk-sticky-tools,
+.sidebar.is-collapsed .template-picker-card,
+.sidebar.is-collapsed .left-filter-card-v54,
+.sidebar.is-collapsed .recent-work-panel,
+.sidebar.is-collapsed .notes-desk-v54 {
+  display: none !important;
+}
+
+.sidebar-collapse-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: rgba(124, 92, 255, 0.12);
+  color: var(--accent-purple-soft, #a98bff);
+  font-weight: 900;
+}
+
+.left-desk-brand {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar.is-collapsed .left-desk-brand {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding: 0;
+  border: 0;
+}
+
+.sidebar.is-collapsed .left-desk-brand .header-icon-button {
+  display: none;
+}
+
+.collapsed-sidebar-rail {
+  display: none;
+}
+
+.sidebar.is-collapsed .collapsed-sidebar-rail {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  justify-items: center;
+}
+
+.collapsed-sidebar-rail button {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.035);
+  color: var(--text);
+  font-size: 18px;
+}
+
+.collapsed-sidebar-rail button:hover {
+  border-color: rgba(169,139,255,0.7);
+  background: rgba(124,92,255,0.16);
+}
+
+.folder-children-with-notes {
+  gap: 6px;
+}
+
+.folder-note-children {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 8px 34px;
+}
+
+.folder-inline-note {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.055);
+  border-left: 3px solid var(--note-type-color, #7c5cff);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.025);
+  color: var(--text);
+  text-align: left;
+}
+
+.folder-inline-note.active,
+.folder-inline-note:hover {
+  border-color: rgba(169,139,255,0.45);
+  border-left-color: var(--note-type-color, #7c5cff);
+  background: rgba(124,92,255,0.12);
+}
+
+.folder-inline-note i {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--note-type-color, #7c5cff) 22%, transparent);
+  color: var(--note-type-color, #7c5cff);
+  font-style: normal;
+}
+
+.folder-inline-note span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.folder-inline-note strong,
+.folder-inline-note em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-inline-note strong {
+  font-size: 13px;
+}
+
+.folder-inline-note em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.folder-inline-note b {
+  color: #ffcf5a;
+}
+
+/* In the new folder-first model, note cards live inside folders, so the separate Notes desk is hidden. */
+.left-desk-v54 .notes-desk-v54 {
+  display: none;
+}
+
+.folder-explorer-priority {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.folder-tree-scroll-area {
+  max-height: none;
+  overflow: auto;
+}
+
+@media (max-width: 760px) {
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar.is-collapsed {
+    width: 100%;
+    min-width: 0;
+    height: 68px;
+    min-height: 68px;
+  }
+
+  .sidebar.is-collapsed .collapsed-sidebar-rail {
+    display: flex;
+    justify-content: space-around;
+    padding-top: 8px;
+  }
+
+  .folder-note-children {
+    margin-left: 18px;
+  }
+}

@@ -35,6 +35,8 @@ type NoteListProps = {
   advancedFilters: AdvancedFilters;
   onAdvancedFiltersChange: (filters: AdvancedFilters) => void;
   onClearAdvancedFilters: () => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
   recentWork?: RecentWorkItem[];
   onSelectRecentWork?: (noteId: string) => void;
 };
@@ -187,6 +189,8 @@ export default function NoteList({
   advancedFilters,
   onAdvancedFiltersChange,
   onClearAdvancedFilters,
+  sidebarCollapsed = false,
+  onToggleSidebar,
   recentWork = [],
   onSelectRecentWork
 }: NoteListProps) {
@@ -255,6 +259,72 @@ export default function NoteList({
     return counts;
   }, [allNotes, folders]);
 
+
+
+  function noteMatchesSidebarFilters(note: Note) {
+    if (typeFilter !== 'all' && note.note_type !== typeFilter) return false;
+    const metadata = note.metadata ?? {};
+    const includes = (value: unknown, filter: string) => !filter.trim() || String(value ?? '').toLowerCase().includes(filter.trim().toLowerCase());
+    if (!includes(metadata.genre, advancedFilters.genre)) return false;
+    if (!includes(metadata.mood, advancedFilters.mood)) return false;
+    if (!includes(metadata.section, advancedFilters.section)) return false;
+    if (!includes(metadata.key, advancedFilters.key)) return false;
+    if (!includes(metadata.harmony, advancedFilters.harmony)) return false;
+    if (!includes(metadata.instrument, advancedFilters.instrument)) return false;
+    if (advancedFilters.confidence && metadata.confidence !== advancedFilters.confidence) return false;
+    const bpmValue = Number(String(metadata.bpm ?? '').replace(/[^0-9.]/g, ''));
+    if (advancedFilters.bpmMin && (!Number.isFinite(bpmValue) || bpmValue < Number(advancedFilters.bpmMin))) return false;
+    if (advancedFilters.bpmMax && (!Number.isFinite(bpmValue) || bpmValue > Number(advancedFilters.bpmMax))) return false;
+    if (advancedFilters.tag.trim()) {
+      const wanted = advancedFilters.tag.trim().replace(/^#/, '').toLowerCase();
+      const tags = splitTags(metadata.tags).map((tag) => tag.replace(/^#/, '').toLowerCase());
+      const metadataText = Object.values(metadata).join(' ').toLowerCase();
+      if (!tags.some((tag) => tag.includes(wanted)) && !metadataText.includes(wanted)) return false;
+    }
+    if (searchTerm.trim()) {
+      const metadataText = Object.values(metadata).join(' ');
+      const haystack = `${note.title} ${stripHtml(note.content)} ${metadataText} ${note.note_type}`.toLowerCase();
+      if (!haystack.includes(searchTerm.trim().toLowerCase())) return false;
+    }
+    return true;
+  }
+
+  const visibleTreeNotes = useMemo(() => {
+    return allNotes
+      .filter(noteMatchesSidebarFilters)
+      .sort((a, b) => {
+        if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      });
+  }, [allNotes, typeFilter, advancedFilters, searchTerm]);
+
+  function getNotesForFolder(folderId: string | null) {
+    return visibleTreeNotes.filter((note) => note.folder_id === folderId);
+  }
+
+  function renderInlineNote(note: Note) {
+    const typeOption = getNoteTypeOption(note.note_type);
+    const meta = [note.metadata?.key, note.metadata?.bpm ? `${note.metadata.bpm} BPM` : '', note.metadata?.mood].filter(Boolean).slice(0, 3);
+    return (
+      <button
+        key={note.id}
+        type="button"
+        className={`folder-inline-note ${selectedNoteId === note.id ? 'active' : ''}`}
+        style={{ '--note-type-color': typeOption.color } as CSSProperties}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelectNote(note);
+        }}
+      >
+        <i>{note.note_type === 'chord_progression' ? '▦' : note.note_type === 'rhythm_pattern' ? '≋' : '♪'}</i>
+        <span>
+          <strong>{note.title || 'Untitled'}</strong>
+          {meta.length > 0 && <em>{meta.join(' · ')}</em>}
+        </span>
+        {note.is_pinned && <b>★</b>}
+      </button>
+    );
+  }
 
   const pinnedFolders = useMemo(() => {
     return folders
@@ -433,7 +503,9 @@ export default function NoteList({
 
   function renderFolderNode(node: FolderNode) {
     const isCollapsed = collapsedFolderIds.has(node.id);
+    const folderNotes = getNotesForFolder(node.id);
     const hasChildren = node.children.length > 0;
+    const hasInlineItems = hasChildren || folderNotes.length > 0;
     const moveOptions = getFolderMoveOptions(node);
     const menuOpen = openFolderMenuId === node.id;
     const isEditing = editingFolderId === node.id;
@@ -446,12 +518,12 @@ export default function NoteList({
             <div className="folder-item-row">
               <button
                 type="button"
-                className={`folder-chevron ${hasChildren ? '' : 'ghost'}`}
-                onClick={() => hasChildren && toggleFolderCollapse(node)}
-                disabled={!hasChildren}
-                aria-label={hasChildren ? (isCollapsed ? '폴더 펼치기' : '폴더 접기') : '하위 폴더 없음'}
+                className={`folder-chevron ${hasInlineItems ? '' : 'ghost'}`}
+                onClick={() => hasInlineItems && toggleFolderCollapse(node)}
+                disabled={!hasInlineItems}
+                aria-label={hasInlineItems ? (isCollapsed ? '폴더 펼치기' : '폴더 접기') : '하위 항목 없음'}
               >
-                {hasChildren ? (isCollapsed ? '▸' : '▾') : '•'}
+                {hasInlineItems ? (isCollapsed ? '▸' : '▾') : '•'}
               </button>
 
               {isEditing ? (
@@ -470,7 +542,10 @@ export default function NoteList({
                 <button
                   type="button"
                   className="folder-main-button"
-                  onClick={() => onSelectFolder(node.id)}
+                  onClick={() => {
+                    onSelectFolder(node.id);
+                    if (hasInlineItems) toggleFolderCollapse(node);
+                  }}
                 >
                   <div className="folder-main-meta">
                     <span className="folder-color-dot" style={{ background: node.color || DEFAULT_FOLDER_COLOR }} />
@@ -545,16 +620,26 @@ export default function NoteList({
           </div>
         </div>
 
-        {!isCollapsed && hasChildren && (
-          <div className="folder-children">{node.children.map(renderFolderNode)}</div>
+        {!isCollapsed && hasInlineItems && (
+          <div className="folder-children folder-children-with-notes">
+            {folderNotes.length > 0 && (
+              <div className="folder-note-children">
+                {folderNotes.map(renderInlineNote)}
+              </div>
+            )}
+            {hasChildren && node.children.map(renderFolderNode)}
+          </div>
         )}
       </div>
     );
   }
 
   return (
-    <aside className="sidebar sidebar-redesign left-desk-v54">
+    <aside className={`sidebar sidebar-redesign left-desk-v54 ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
       <header className="left-desk-brand">
+        <button type="button" className="sidebar-collapse-button" onClick={onToggleSidebar} title={sidebarCollapsed ? '사이드바 열기' : '사이드바 접기'}>
+          {sidebarCollapsed ? '»' : '«'}
+        </button>
         <div>
           <strong>Urban Music Library</strong>
           <span>Folder-first analysis desk</span>
@@ -568,6 +653,14 @@ export default function NoteList({
           +
         </button>
       </header>
+
+      <div className="collapsed-sidebar-rail" aria-label="Collapsed sidebar quick actions">
+        <button type="button" onClick={onToggleSidebar} title="폴더 탐색 열기">▣</button>
+        <button type="button" onClick={() => onCreateNote('song_analysis')} title="Song Analysis 만들기">♪</button>
+        <button type="button" onClick={() => onCreateNote('chord_progression')} title="Chord 만들기">▦</button>
+        <button type="button" onClick={() => onCreateNote('rhythm_pattern')} title="Rhythm 만들기">≋</button>
+        <button type="button" onClick={() => { onToggleSidebar?.(); window.setTimeout(focusSearchInput, 50); }} title="검색">⌕</button>
+      </div>
 
       <section className="folder-panel folder-panel-redesign folder-explorer-priority" aria-label="Folder Explorer">
         <div className="folder-panel-header folder-panel-header-redesign">
