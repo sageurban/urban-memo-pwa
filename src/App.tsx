@@ -108,6 +108,7 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [audioUploadStatus, setAudioUploadStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [mobileView, setMobileView] = useState<'folders' | 'editor'>('folders');
 
   const selectedNote = useMemo(() => {
     return notes.find((note) => note.id === selectedNoteId) ?? null;
@@ -220,6 +221,7 @@ export default function App() {
         setAudioFiles([]);
         setSelectedNoteId(null);
         setSelectedFolderId('all');
+        setMobileView('folders');
       }
     });
 
@@ -327,6 +329,7 @@ export default function App() {
     const optimisticNote = createLocalNote(session.user.id, folderId);
     setNotes((prev) => [optimisticNote, ...prev]);
     setSelectedNoteId(optimisticNote.id);
+    setMobileView('editor');
 
     const { data, error } = await supabase
       .from('notes')
@@ -347,6 +350,7 @@ export default function App() {
 
     setNotes((prev) => prev.map((note) => (note.id === optimisticNote.id ? data : note)));
     setSelectedNoteId(data.id);
+    setMobileView('editor');
   }
 
   const handleUpdateNote = useCallback(async (noteId: string, values: Pick<Note, 'title' | 'content'>) => {
@@ -535,7 +539,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell mobile-view-${mobileView}`}>
       <NoteList
         notes={filteredNotes}
         allNotes={notes}
@@ -548,7 +552,10 @@ export default function App() {
         onCreateFolder={handleCreateFolder}
         onUpdateFolder={handleUpdateFolder}
         onDeleteFolder={handleDeleteFolder}
-        onSelectNote={(note) => setSelectedNoteId(note.id)}
+        onSelectNote={(note) => {
+          setSelectedNoteId(note.id);
+          setMobileView('editor');
+        }}
         onCreateNote={handleCreateNote}
         onTogglePin={handleTogglePin}
         onChangeNoteFolder={handleChangeNoteFolder}
@@ -578,8 +585,31 @@ export default function App() {
           onChangeNoteFolder={handleChangeNoteFolder}
           onUploadAudio={handleUploadAudio}
           onDeleteAudio={handleDeleteAudio}
+          onBackToList={() => setMobileView('folders')}
         />
       </main>
+
+      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+        <button type="button" className={mobileView === 'folders' ? 'active' : ''} onClick={() => setMobileView('folders')}>
+          <span>▣</span>
+          <em>폴더</em>
+        </button>
+        <button type="button" className={mobileView === 'folders' ? 'active' : ''} onClick={() => setMobileView('folders')}>
+          <span>✎</span>
+          <em>메모</em>
+        </button>
+        <button type="button" className="center-action" onClick={handleCreateNote}>
+          +
+        </button>
+        <button type="button" onClick={() => setMobileView('folders')}>
+          <span>⌕</span>
+          <em>검색</em>
+        </button>
+        <button type="button" className={mobileView === 'editor' ? 'active' : ''} onClick={() => setMobileView('editor')}>
+          <span>▤</span>
+          <em>편집</em>
+        </button>
+      </nav>
     </div>
   );
 }

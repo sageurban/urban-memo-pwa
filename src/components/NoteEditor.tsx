@@ -11,6 +11,7 @@ type NoteEditorProps = {
   onChangeNoteFolder: (noteId: string, folderId: string | null) => void;
   onUploadAudio: (note: Note, file: File) => void;
   onDeleteAudio: (audioFile: AudioFile) => void;
+  onBackToList?: () => void;
 };
 
 type FolderOption = Folder & { depth: number };
@@ -108,7 +109,8 @@ export default function NoteEditor({
   onUpdateNote,
   onChangeNoteFolder,
   onUploadAudio,
-  onDeleteAudio
+  onDeleteAudio,
+  onBackToList
 }: NoteEditorProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -186,7 +188,7 @@ export default function NoteEditor({
     <section className="editor rich-editor-layout editor-redesign-shell">
       <div className="editor-phone-frame">
         <div className="editor-mobile-topline">
-          <button type="button" className="mobile-nav-button">‹</button>
+          <button type="button" className="mobile-nav-button" onClick={onBackToList}>‹</button>
           <div className="editor-mobile-title">
             <strong>메모 편집</strong>
             <span><i>☁</i> {statusText(saveStatus)} • 방금 전</span>
@@ -306,7 +308,7 @@ export default function NoteEditor({
             suppressContentEditableWarning
             dangerouslySetInnerHTML={{ __html: content }}
           />
-          <span className="content-count">{characterCount}/1,000</span>
+          <span className="content-count">{characterCount.toLocaleString()}자 · 무제한</span>
         </div>
 
         <section className="editor-card audio-panel audio-panel-redesign">
