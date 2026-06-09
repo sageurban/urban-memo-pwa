@@ -2472,3 +2472,64 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* Filter bar visibility fix: make note type filters fully clickable under search */
+.sidebar-redesign .search-input-redesign {
+  flex: 0 0 auto;
+  margin-bottom: 2px;
+}
+
+.sidebar-redesign .type-filter-bar {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  overflow: visible;
+  padding: 6px 2px 12px;
+  margin: 0 0 2px;
+  min-height: max-content;
+  scrollbar-width: auto;
+}
+
+.sidebar-redesign .type-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar-redesign .type-filter-bar button {
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  line-height: 1.1;
+  touch-action: manipulation;
+}
+
+.sidebar-redesign .type-filter-bar button:hover {
+  transform: none;
+}
+
+.sidebar-redesign .sidebar-subheader {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+@media (min-width: 1180px) {
+  .sidebar-redesign .type-filter-bar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .sidebar-redesign .type-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-bottom: 10px;
+  }
+
+  .sidebar-redesign .type-filter-bar button {
+    min-height: 38px;
+    font-size: 11px;
+  }
+}
