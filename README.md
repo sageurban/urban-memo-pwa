@@ -54,3 +54,9 @@ Make sure Vercel has these environment variables:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
+
+
+## Folder rename update
+
+- 폴더 줄의 `Rename` 버튼으로 폴더 이름을 수정할 수 있습니다.
+- 이름 변경은 기존 `folders.name` 컬럼을 사용하므로 Supabase SQL 재실행이 필요 없습니다.

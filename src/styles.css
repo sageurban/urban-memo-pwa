@@ -953,3 +953,84 @@ button:disabled {
     grid-template-columns: 1fr auto;
   }
 }
+
+/* Folder rename update */
+.folder-row-wrap {
+  grid-template-columns: 26px minmax(0, 1fr) 32px 32px auto auto 32px;
+}
+
+.folder-rename {
+  height: 32px;
+  padding: 0 9px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.folder-rename:hover {
+  color: var(--text);
+  background: var(--panel-2);
+  transform: none;
+}
+
+.folder-rename-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(16, 16, 16, 0.84);
+}
+
+.folder-rename-panel label {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.folder-rename-panel input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #101010;
+  color: var(--text);
+  padding: 8px 10px;
+  outline: none;
+}
+
+.folder-rename-panel button {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.folder-rename-panel button[type="submit"] {
+  color: var(--accent);
+}
+
+@media (max-width: 760px) {
+  .folder-row-wrap {
+    grid-template-columns: 24px minmax(0, 1fr) 30px 30px auto auto 30px;
+    gap: 4px;
+  }
+
+  .folder-rename,
+  .folder-move {
+    padding: 0 7px;
+    font-size: 10px;
+  }
+
+  .folder-rename-panel {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+  }
+}

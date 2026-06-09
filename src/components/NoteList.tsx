@@ -140,6 +140,8 @@ export default function NoteList({
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => loadCollapsedFolders());
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
   const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [editingFolderName, setEditingFolderName] = useState('');
 
   const folderTree = useMemo(() => buildFolderTree(folders), [folders]);
   const folderOptions = useMemo(() => flattenFolderTree(folderTree), [folderTree]);
@@ -216,6 +218,27 @@ export default function NoteList({
     setMovingFolderId(null);
   }
 
+  function startRenameFolder(folder: Folder) {
+    setEditingFolderId(folder.id);
+    setEditingFolderName(folder.name);
+    setMovingFolderId(null);
+  }
+
+  function cancelRenameFolder() {
+    setEditingFolderId(null);
+    setEditingFolderName('');
+  }
+
+  function submitRenameFolder(event: FormEvent, folder: Folder) {
+    event.preventDefault();
+    const nextName = editingFolderName.trim();
+    if (!nextName) return;
+    if (nextName !== folder.name) {
+      onUpdateFolder(folder, { name: nextName });
+    }
+    cancelRenameFolder();
+  }
+
   function handleMoveNote(note: Note, nextFolderId: string) {
     const folderId = nextFolderId || null;
     onChangeNoteFolder(note.id, folderId);
@@ -272,8 +295,20 @@ export default function NoteList({
 
           <button
             type="button"
+            className="folder-rename"
+            onClick={() => startRenameFolder(node)}
+            title="Rename folder"
+          >
+            Rename
+          </button>
+
+          <button
+            type="button"
             className="folder-move"
-            onClick={() => setMovingFolderId((current) => (current === node.id ? null : node.id))}
+            onClick={() => {
+              setMovingFolderId((current) => (current === node.id ? null : node.id));
+              setEditingFolderId(null);
+            }}
             title="Move folder"
           >
             Move
@@ -288,6 +323,24 @@ export default function NoteList({
             ×
           </button>
         </div>
+
+        {editingFolderId === node.id && (
+          <form className="folder-rename-panel" style={{ marginLeft: `${node.depth * 14 + 28}px` }} onSubmit={(event) => submitRenameFolder(event, node)}>
+            <label>
+              Rename
+              <input
+                value={editingFolderName}
+                onChange={(event) => setEditingFolderName(event.target.value)}
+                maxLength={40}
+                autoFocus
+              />
+            </label>
+            <button type="submit">Save</button>
+            <button type="button" onClick={cancelRenameFolder}>
+              Cancel
+            </button>
+          </form>
+        )}
 
         {movingFolderId === node.id && (
           <div className="folder-move-panel" style={{ marginLeft: `${node.depth * 14 + 28}px` }}>
