@@ -5,7 +5,7 @@ import NoteEditor from './components/NoteEditor';
 import NoteList from './components/NoteList';
 import { supabase } from './lib/supabase';
 import { AudioFile, Folder, Note, SaveStatus } from './types/note';
-import { defaultMetadataForTypes, defaultTitleForTypes, MusicMetadata, normalizeTemplateTypes, NoteType, templateContentForTypes } from './lib/musicTemplates';
+import { AdvancedFilters, defaultMetadataForTypes, defaultTitleForTypes, EMPTY_ADVANCED_FILTERS, MusicMetadata, normalizeTemplateTypes, NoteType, splitTags, templateContentForTypes } from './lib/musicTemplates';
 
 type FolderFilter = 'all' | 'unfiled' | string;
 
@@ -67,6 +67,39 @@ function stripHtml(value: string) {
   return element.textContent ?? '';
 }
 
+function includesText(value: unknown, filter: string) {
+  if (!filter.trim()) return true;
+  return String(value ?? '').toLowerCase().includes(filter.trim().toLowerCase());
+}
+
+function matchesAdvancedFilters(note: Note, filters: AdvancedFilters) {
+  const metadata = note.metadata ?? {};
+  if (!includesText(metadata.genre, filters.genre)) return false;
+  if (!includesText(metadata.mood, filters.mood)) return false;
+  if (!includesText(metadata.section, filters.section)) return false;
+  if (!includesText(metadata.key, filters.key)) return false;
+  if (!includesText(metadata.harmony, filters.harmony)) return false;
+  if (!includesText(metadata.instrument, filters.instrument)) return false;
+  if (filters.confidence && metadata.confidence !== filters.confidence) return false;
+
+  const bpmValue = Number(String(metadata.bpm ?? '').replace(/[^0-9.]/g, ''));
+  const minBpm = Number(filters.bpmMin);
+  const maxBpm = Number(filters.bpmMax);
+
+  if (filters.bpmMin && (!Number.isFinite(bpmValue) || bpmValue < minBpm)) return false;
+  if (filters.bpmMax && (!Number.isFinite(bpmValue) || bpmValue > maxBpm)) return false;
+
+  if (filters.tag.trim()) {
+    const wanted = filters.tag.trim().replace(/^#/, '').toLowerCase();
+    const tags = splitTags(metadata.tags).map((tag) => tag.replace(/^#/, '').toLowerCase());
+    const metadataText = Object.values(metadata).join(' ').toLowerCase();
+    if (!tags.some((tag) => tag.includes(wanted)) && !metadataText.includes(wanted)) return false;
+  }
+
+  return true;
+}
+
+
 function collectFolderAndDescendantIds(folderId: string, folders: Folder[]) {
   const ids = new Set<string>([folderId]);
   let changed = true;
@@ -110,6 +143,7 @@ export default function App() {
   const [selectedFolderId, setSelectedFolderId] = useState<FolderFilter>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | NoteType>('all');
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(EMPTY_ADVANCED_FILTERS);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [audioUploadStatus, setAudioUploadStatus] = useState('');
@@ -132,6 +166,7 @@ export default function App() {
     return notes
       .filter((note) => {
         if (typeFilter !== 'all' && note.note_type !== typeFilter) return false;
+        if (!matchesAdvancedFilters(note, advancedFilters)) return false;
         if (selectedFolderId === 'unfiled' && note.folder_id !== null) return false;
         if (selectedFolderScope && (!note.folder_id || !selectedFolderScope.has(note.folder_id))) return false;
         if (!keyword) return true;
@@ -142,7 +177,7 @@ export default function App() {
         if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
         return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       });
-  }, [notes, selectedFolderId, selectedFolderScope, searchTerm, typeFilter]);
+  }, [notes, selectedFolderId, selectedFolderScope, searchTerm, typeFilter, advancedFilters]);
 
   const selectedNoteAudioFiles = useMemo(() => {
     if (!selectedNoteId) return [];
@@ -604,6 +639,9 @@ export default function App() {
         searchFocusSignal={searchFocusSignal}
         typeFilter={typeFilter}
         onTypeFilterChange={setTypeFilter}
+        advancedFilters={advancedFilters}
+        onAdvancedFiltersChange={setAdvancedFilters}
+        onClearAdvancedFilters={() => setAdvancedFilters(EMPTY_ADVANCED_FILTERS)}
       />
 
       <main className="main-panel">

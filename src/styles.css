@@ -2533,3 +2533,217 @@ button:disabled {
     font-size: 11px;
   }
 }
+
+
+/* Urban Music Library v2 - Advanced filters */
+.advanced-filter-card {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.advanced-filter-toggle {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.035);
+  color: var(--text);
+  text-align: left;
+}
+
+.advanced-filter-toggle span {
+  font-weight: 800;
+}
+
+.advanced-filter-toggle em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+}
+
+.advanced-filter-toggle b {
+  color: var(--muted);
+}
+
+.active-filter-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.active-filter-chip-row button,
+.note-tag-row button {
+  min-height: 30px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.045);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.advanced-filter-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 22px;
+  background: rgba(255,255,255,0.025);
+}
+
+.filter-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.filter-field label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.filter-field input,
+.filter-field select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #101010;
+  color: var(--text);
+  padding: 12px 12px;
+  outline: none;
+}
+
+.bpm-filter-field {
+  grid-column: 1 / -1;
+}
+
+.bpm-range-inputs {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.bpm-range-inputs span {
+  color: var(--muted);
+}
+
+.bpm-preset-row,
+.preset-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.bpm-preset-row button,
+.preset-filter-row button,
+.clear-filter-button {
+  min-height: 32px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.035);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.preset-filter-row,
+.clear-filter-button {
+  grid-column: 1 / -1;
+}
+
+.clear-filter-button {
+  width: 100%;
+  color: var(--muted);
+}
+
+.note-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.note-tag-row button {
+  color: #cfdcff;
+}
+
+.note-meta-chips b.confidence-high {
+  border-color: rgba(155, 227, 155, 0.2);
+  color: #9be39b;
+}
+
+.note-meta-chips b.confidence-medium {
+  border-color: rgba(244, 209, 132, 0.2);
+  color: #f4d184;
+}
+
+.note-meta-chips b.confidence-low {
+  border-color: rgba(255, 143, 143, 0.2);
+  color: #ff8f8f;
+}
+
+.tag-editor-block {
+  display: grid;
+  gap: 8px;
+}
+
+.tag-editor-block > span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tag-chip-editor {
+  min-height: 46px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #101010;
+  padding: 8px;
+}
+
+.tag-chip-editor button {
+  min-height: 30px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.045);
+  color: #cfdcff;
+  font-size: 12px;
+}
+
+.tag-chip-editor input {
+  flex: 1;
+  min-width: 120px;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--text);
+  padding: 8px !important;
+}
+
+@media (max-width: 760px) {
+  .advanced-filter-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .advanced-filter-toggle {
+    grid-template-columns: 1fr auto;
+  }
+
+  .advanced-filter-toggle em {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}

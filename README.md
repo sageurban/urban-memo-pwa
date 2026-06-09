@@ -1,62 +1,99 @@
-# Urban Memo PWA
+# Urban Music Library v1
 
-React + Vite + Supabase 기반의 개인용 Mac/iPhone 연동 메모장입니다.
+Personal music analysis and production-idea library built on React + Vite + Supabase.
 
-## Included features
+## New in v1
 
-- Supabase Magic Link login
-- Folder creation
-- Nested folders
-- Folder color editing
-- Folder collapse / expand controls
-- Collapse all / expand all folder tree controls
-- Move folders into other folders or back to top level
-- Move notes into another folder or Unfiled
-- Rich text memo editor
-- Text color changes inside notes
-- Text size changes inside notes
-- MP3 upload, playback, and deletion per note
-- PWA install support
+- Note type system
+  - General Note
+  - Song Analysis
+  - Chord Progression
+  - Rhythm Pattern
+  - Sound Design
+  - Lyrics / Hook Idea
+  - My Demo Idea
+- Type-based templates inserted automatically when creating a new note.
+- Type badges on note cards.
+- Type filter chips in the sidebar.
+- Music metadata panel inside the editor.
+  - Genre
+  - BPM
+  - Key
+  - Mood
+  - Section
+  - Harmony
+  - Instrument
+  - Confidence
+  - Tags
+  - Source
+- Search now includes title, content, note type, and metadata values.
+- Existing features preserved:
+  - folders / nested folders
+  - folder colors
+  - folder rename / move / collapse
+  - rich text editor
+  - MP3 upload and playback
+  - mobile responsive UI
 
-## Update notes
+## Supabase migration
 
-This version does not require a new SQL migration if you already applied the previous nested-folder version.
-It uses the existing `folders.parent_id`, `folders.color`, and `notes.folder_id` columns.
+Run `supabase/schema.sql` again in Supabase SQL Editor.
 
-If you have not applied the previous folder/MP3/nested-folder SQL yet, run `supabase/schema.sql` in Supabase SQL Editor.
+This adds:
 
-## Local setup
-
-Create `.env` in the project root:
-
-```env
-VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY
+```sql
+notes.note_type text default 'general'
+notes.metadata jsonb default '{}'
 ```
 
-Install and run:
+Existing notes are preserved and automatically become `general` notes.
 
-```bash
-npm install
-npm run dev
+## Apply update
+
+Copy these files into your existing project:
+
+```text
+src/App.tsx
+src/components/NoteList.tsx
+src/components/NoteEditor.tsx
+src/lib/musicTemplates.ts
+src/types/note.ts
+src/styles.css
+supabase/schema.sql
 ```
 
-Build check:
+Keep your existing `.env` file.
+
+Then run:
 
 ```bash
 npm run build
+git add .
+git commit -m "Add Urban Music Library v1 templates and metadata"
+git push
 ```
 
-## Deploy
 
-Push to GitHub and redeploy on Vercel.
-Make sure Vercel has these environment variables:
+## Urban Music Library v2 - Advanced Filters
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
+추가 기능:
+- 고급 필터 패널
+  - Genre
+  - Mood
+  - Section
+  - Key
+  - BPM Range
+  - Harmony
+  - Instrument
+  - Confidence
+  - Tag
+- Active filter chips
+- BPM preset buttons
+- Metadata 기반 검색/필터링
+- 메모 카드에 metadata badge/tag 표시
+- 태그 클릭 시 tag filter 적용
+- NoteEditor에서 태그를 Enter로 추가하고 클릭으로 삭제
 
-
-## Folder rename update
-
-- 폴더 줄의 `Rename` 버튼으로 폴더 이름을 수정할 수 있습니다.
-- 이름 변경은 기존 `folders.name` 컬럼을 사용하므로 Supabase SQL 재실행이 필요 없습니다.
+SQL:
+- 기존 `notes.metadata` jsonb 컬럼을 사용합니다.
+- 이미 v1에서 metadata 컬럼을 추가했다면 추가 SQL 실행은 필요 없습니다.

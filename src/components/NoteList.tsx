@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Folder, Note } from '../types/note';
-import { getNoteTypeOption, NOTE_TYPE_OPTIONS, NoteType } from '../lib/musicTemplates';
+import { AdvancedFilters, BPM_PRESETS, GENRE_PRESETS, getNoteTypeOption, HARMONY_PRESETS, INSTRUMENT_PRESETS, KEY_PRESETS, MOOD_PRESETS, NOTE_TYPE_OPTIONS, NoteType, SECTION_PRESETS, splitTags } from '../lib/musicTemplates';
 
 type FolderFilter = 'all' | 'unfiled' | string;
 
@@ -24,6 +24,9 @@ type NoteListProps = {
   searchFocusSignal?: number;
   typeFilter: 'all' | NoteType;
   onTypeFilterChange: (value: 'all' | NoteType) => void;
+  advancedFilters: AdvancedFilters;
+  onAdvancedFiltersChange: (filters: AdvancedFilters) => void;
+  onClearAdvancedFilters: () => void;
 };
 
 type FolderNode = Folder & { children: FolderNode[]; depth: number };
@@ -139,13 +142,17 @@ export default function NoteList({
   onDeleteNote,
   searchFocusSignal = 0,
   typeFilter,
-  onTypeFilterChange
+  onTypeFilterChange,
+  advancedFilters,
+  onAdvancedFiltersChange,
+  onClearAdvancedFilters
 }: NoteListProps) {
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderColor, setNewFolderColor] = useState(DEFAULT_FOLDER_COLOR);
   const [newFolderParentId, setNewFolderParentId] = useState('');
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<NoteType[]>(['song_analysis']);
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => loadCollapsedFolders());
   const [openFolderMenuId, setOpenFolderMenuId] = useState<string | null>(null);
@@ -298,6 +305,24 @@ export default function NoteList({
   function createNoteFromSelectedTemplates() {
     onCreateNote(selectedTemplateIds);
     setShowTemplatePicker(false);
+  }
+
+
+  const activeAdvancedFilterCount = useMemo(() => {
+    return Object.values(advancedFilters).filter((value) => String(value ?? '').trim()).length;
+  }, [advancedFilters]);
+
+  function updateAdvancedFilter<K extends keyof AdvancedFilters>(key: K, value: AdvancedFilters[K]) {
+    onAdvancedFiltersChange({ ...advancedFilters, [key]: value });
+  }
+
+  function applyBpmPreset(min: string, max: string) {
+    onAdvancedFiltersChange({ ...advancedFilters, bpmMin: min, bpmMax: max });
+  }
+
+  function toggleAdvancedPreset(key: keyof AdvancedFilters, value: string) {
+    const current = String(advancedFilters[key] ?? '');
+    updateAdvancedFilter(key, current === value ? '' as never : value as never);
   }
 
   function renderSystemFolder(id: FolderFilter, label: string, count: number, tone: string) {
@@ -571,6 +596,112 @@ export default function NoteList({
         ))}
       </div>
 
+      <section className="advanced-filter-card">
+        <button
+          type="button"
+          className="advanced-filter-toggle"
+          onClick={() => setShowAdvancedFilters((current) => !current)}
+        >
+          <span>고급 필터</span>
+          <em>{activeAdvancedFilterCount > 0 ? `${activeAdvancedFilterCount} active` : 'Genre · BPM · Key · Tag'}</em>
+          <b>{showAdvancedFilters ? '▴' : '▾'}</b>
+        </button>
+
+        {activeAdvancedFilterCount > 0 && (
+          <div className="active-filter-chip-row">
+            {advancedFilters.genre && <button type="button" onClick={() => updateAdvancedFilter('genre', '')}>Genre: {advancedFilters.genre} ×</button>}
+            {advancedFilters.mood && <button type="button" onClick={() => updateAdvancedFilter('mood', '')}>Mood: {advancedFilters.mood} ×</button>}
+            {advancedFilters.section && <button type="button" onClick={() => updateAdvancedFilter('section', '')}>Section: {advancedFilters.section} ×</button>}
+            {advancedFilters.key && <button type="button" onClick={() => updateAdvancedFilter('key', '')}>Key: {advancedFilters.key} ×</button>}
+            {advancedFilters.harmony && <button type="button" onClick={() => updateAdvancedFilter('harmony', '')}>Harmony: {advancedFilters.harmony} ×</button>}
+            {advancedFilters.instrument && <button type="button" onClick={() => updateAdvancedFilter('instrument', '')}>Inst: {advancedFilters.instrument} ×</button>}
+            {advancedFilters.confidence && <button type="button" onClick={() => updateAdvancedFilter('confidence', '')}>Confidence: {advancedFilters.confidence} ×</button>}
+            {advancedFilters.tag && <button type="button" onClick={() => updateAdvancedFilter('tag', '')}>Tag: #{advancedFilters.tag.replace(/^#/, '')} ×</button>}
+            {(advancedFilters.bpmMin || advancedFilters.bpmMax) && <button type="button" onClick={() => onAdvancedFiltersChange({ ...advancedFilters, bpmMin: '', bpmMax: '' })}>BPM: {advancedFilters.bpmMin || '0'}-{advancedFilters.bpmMax || '+'} ×</button>}
+          </div>
+        )}
+
+        {showAdvancedFilters && (
+          <div className="advanced-filter-panel">
+            <div className="filter-field">
+              <label>Genre</label>
+              <input list="genre-presets" value={advancedFilters.genre} onChange={(event) => updateAdvancedFilter('genre', event.target.value)} placeholder="K-pop" />
+              <datalist id="genre-presets">{GENRE_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            </div>
+            <div className="filter-field">
+              <label>Mood</label>
+              <input list="mood-presets" value={advancedFilters.mood} onChange={(event) => updateAdvancedFilter('mood', event.target.value)} placeholder="청량" />
+              <datalist id="mood-presets">{MOOD_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            </div>
+            <div className="filter-field">
+              <label>Section</label>
+              <input list="section-presets" value={advancedFilters.section} onChange={(event) => updateAdvancedFilter('section', event.target.value)} placeholder="Chorus" />
+              <datalist id="section-presets">{SECTION_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            </div>
+            <div className="filter-field">
+              <label>Key</label>
+              <input list="key-presets" value={advancedFilters.key} onChange={(event) => updateAdvancedFilter('key', event.target.value)} placeholder="B Major" />
+              <datalist id="key-presets">{KEY_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            </div>
+            <div className="filter-field">
+              <label>Harmony</label>
+              <input list="harmony-presets" value={advancedFilters.harmony} onChange={(event) => updateAdvancedFilter('harmony', event.target.value)} placeholder="Modal Interchange" />
+              <datalist id="harmony-presets">{HARMONY_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            </div>
+            <div className="filter-field">
+              <label>Instrument</label>
+              <input list="instrument-presets" value={advancedFilters.instrument} onChange={(event) => updateAdvancedFilter('instrument', event.target.value)} placeholder="EP Pluck" />
+              <datalist id="instrument-presets">{INSTRUMENT_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            </div>
+            <div className="filter-field">
+              <label>Confidence</label>
+              <select value={advancedFilters.confidence} onChange={(event) => updateAdvancedFilter('confidence', event.target.value as AdvancedFilters['confidence'])}>
+                <option value="">Any</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <div className="filter-field">
+              <label>Tag</label>
+              <input value={advancedFilters.tag} onChange={(event) => updateAdvancedFilter('tag', event.target.value)} placeholder="NCTWISH / 청량" />
+            </div>
+
+            <div className="filter-field bpm-filter-field">
+              <label>BPM Range</label>
+              <div className="bpm-range-inputs">
+                <input value={advancedFilters.bpmMin} onChange={(event) => updateAdvancedFilter('bpmMin', event.target.value)} inputMode="numeric" placeholder="Min" />
+                <span>—</span>
+                <input value={advancedFilters.bpmMax} onChange={(event) => updateAdvancedFilter('bpmMax', event.target.value)} inputMode="numeric" placeholder="Max" />
+              </div>
+              <div className="bpm-preset-row">
+                {BPM_PRESETS.map((preset) => (
+                  <button key={preset.label} type="button" onClick={() => applyBpmPreset(preset.min, preset.max)}>
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="preset-filter-row">
+              {[...GENRE_PRESETS.slice(0, 4), ...HARMONY_PRESETS.slice(1, 4)].map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => toggleAdvancedPreset(GENRE_PRESETS.includes(item) ? 'genre' : 'harmony', item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+
+            <button type="button" className="clear-filter-button" onClick={onClearAdvancedFilters} disabled={activeAdvancedFilterCount === 0}>
+              필터 초기화
+            </button>
+          </div>
+        )}
+      </section>
+
       <div className="sidebar-subheader">
         <strong>메모</strong>
         <button type="button" className="new-note-button" onClick={() => setShowTemplatePicker((current) => !current)}>새 메모</button>
@@ -646,7 +777,19 @@ export default function NoteList({
                     {note.metadata?.bpm && <b>{note.metadata.bpm} BPM</b>}
                     {note.metadata?.key && <b>{note.metadata.key}</b>}
                     {note.metadata?.section && <b>{note.metadata.section}</b>}
+                    {note.metadata?.mood && <b>{note.metadata.mood}</b>}
+                    {note.metadata?.harmony && <b>{note.metadata.harmony}</b>}
+                    {note.metadata?.confidence && <b className={`confidence-${note.metadata.confidence.toLowerCase()}`}>{note.metadata.confidence}</b>}
                   </div>
+                  {splitTags(note.metadata?.tags).length > 0 && (
+                    <div className="note-tag-row" onClick={(event) => event.stopPropagation()}>
+                      {splitTags(note.metadata?.tags).slice(0, 5).map((tag) => (
+                        <button key={tag} type="button" onClick={() => updateAdvancedFilter('tag', tag)}>
+                          #{tag.replace(/^#/, '')}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <span>{formatDate(note.updated_at)}</span>
                 </div>
                 <div className="note-row-actions" onClick={(event) => event.stopPropagation()}>

@@ -20,6 +20,56 @@ export type MusicMetadata = {
   source?: string;
 };
 
+
+export type AdvancedFilters = {
+  genre: string;
+  mood: string;
+  section: string;
+  key: string;
+  harmony: string;
+  instrument: string;
+  confidence: '' | 'High' | 'Medium' | 'Low';
+  tag: string;
+  bpmMin: string;
+  bpmMax: string;
+};
+
+export const EMPTY_ADVANCED_FILTERS: AdvancedFilters = {
+  genre: '',
+  mood: '',
+  section: '',
+  key: '',
+  harmony: '',
+  instrument: '',
+  confidence: '',
+  tag: '',
+  bpmMin: '',
+  bpmMax: ''
+};
+
+export const GENRE_PRESETS = ['K-pop', 'J-pop', 'R&B', 'Jersey Club', 'UK Garage', 'Future Bass', 'Boom Bap', 'Hyperpop'];
+export const MOOD_PRESETS = ['청량', 'nostalgic', 'dreamy', 'dark', 'emotional', 'kitsch', 'aggressive'];
+export const SECTION_PRESETS = ['Intro', 'Verse', 'Pre-Chorus', 'Chorus', 'Hook', 'Bridge', 'Dance Break', 'Full Song'];
+export const HARMONY_PRESETS = ['Diatonic', 'Modal Interchange', 'Secondary Dominant', 'Chromatic Bass', 'Neapolitan', 'Augmented Dominant', 'Pedal Point', 'Tritone Sub'];
+export const KEY_PRESETS = ['B Major', 'D Major', 'E Major', 'F Major', 'C# minor', 'D minor', 'F minor', 'Eb minor', 'G minor'];
+export const INSTRUMENT_PRESETS = ['EP Pluck', 'Synth Bass', 'Drums', 'Vocal Chop', 'Guitar', 'Strings', '808', 'FX'];
+
+export const BPM_PRESETS = [
+  { label: '90-100', min: '90', max: '100' },
+  { label: '100-120', min: '100', max: '120' },
+  { label: '120-130', min: '120', max: '130' },
+  { label: '130-145', min: '130', max: '145' },
+  { label: '145+', min: '145', max: '' }
+];
+
+export function splitTags(value?: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split(/[,#\n]/g)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
 export const NOTE_TYPE_OPTIONS: Array<{
   id: NoteType;
   label: string;

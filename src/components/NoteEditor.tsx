@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AudioFile, Folder, Note, SaveStatus } from '../types/note';
-import { getNoteTypeOption, MusicMetadata } from '../lib/musicTemplates';
+import { getNoteTypeOption, MusicMetadata, splitTags } from '../lib/musicTemplates';
 
 type NoteEditorProps = {
   note: Note | null;
@@ -124,6 +124,7 @@ export default function NoteEditor({
   const [textColor, setTextColor] = useState(TEXT_COLOR_PRESETS[0]);
   const [fontSize, setFontSize] = useState('3');
   const [metadata, setMetadata] = useState<MusicMetadata>({});
+  const [tagDraft, setTagDraft] = useState('');
   const [showNoteMenu, setShowNoteMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -192,6 +193,26 @@ export default function NoteEditor({
 
   function updateMetaField(field: keyof MusicMetadata, value: string) {
     setMetadata((prev) => ({ ...prev, [field]: value }));
+  }
+
+
+  function addTag(rawValue?: string) {
+    const value = (rawValue ?? tagDraft).trim().replace(/^#/, '');
+    if (!value) return;
+
+    const currentTags = splitTags(metadata.tags);
+    if (currentTags.some((tag) => tag.toLowerCase() === value.toLowerCase())) {
+      setTagDraft('');
+      return;
+    }
+
+    updateMetaField('tags', [...currentTags, value].join(', '));
+    setTagDraft('');
+  }
+
+  function removeTag(tagToRemove: string) {
+    const nextTags = splitTags(metadata.tags).filter((tag) => tag !== tagToRemove);
+    updateMetaField('tags', nextTags.join(', '));
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -319,7 +340,28 @@ export default function NoteEditor({
             <label>Harmony<input value={metadata.harmony ?? ''} onChange={(event) => updateMetaField('harmony', event.target.value)} placeholder="Modal Interchange" /></label>
             <label>Instrument<input value={metadata.instrument ?? ''} onChange={(event) => updateMetaField('instrument', event.target.value)} placeholder="EP Pluck" /></label>
             <label>Confidence<select value={metadata.confidence ?? ''} onChange={(event) => updateMetaField('confidence', event.target.value)}><option value="">None</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option></select></label>
-            <label className="meta-wide">Tags<input value={metadata.tags ?? ''} onChange={(event) => updateMetaField('tags', event.target.value)} placeholder="chorus, bright, boy group" /></label>
+            <div className="meta-wide tag-editor-block">
+              <span>Tags</span>
+              <div className="tag-chip-editor">
+                {splitTags(metadata.tags).map((tag) => (
+                  <button type="button" key={tag} onClick={() => removeTag(tag)}>
+                    #{tag.replace(/^#/, '')} ×
+                  </button>
+                ))}
+                <input
+                  value={tagDraft}
+                  onChange={(event) => setTagDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ',') {
+                      event.preventDefault();
+                      addTag();
+                    }
+                  }}
+                  onBlur={() => addTag()}
+                  placeholder="태그 입력 후 Enter"
+                />
+              </div>
+            </div>
             <label className="meta-wide">Source<input value={metadata.source ?? ''} onChange={(event) => updateMetaField('source', event.target.value)} placeholder="직접 분석 / 공식 자료 / 추정" /></label>
           </div>
         </div>
