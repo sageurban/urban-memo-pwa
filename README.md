@@ -82,3 +82,25 @@ This version adds a music-data dashboard and a chord transpose utility.
 ### Supabase
 No new SQL is required if Stage 1–3 SQL has already been applied.
 This update uses existing `notes.metadata`, `notes.note_type`, `audio_files`, and `audio_markers`.
+
+
+## Urban Music Library v5 - Navigation & Workflow Refinement
+
+This update separates the workspace into Library, Dashboard, Tools, and Settings views.
+
+### Added
+- Top navigation tabs on desktop: Library / Dashboard / Tools
+- Mobile bottom navigation updated: Library / Dashboard / + / Tools / Settings
+- Dashboard is now a focused data explorer
+- Chord Transpose is a floating utility widget, independent from Dashboard
+- Chord Transpose improvements:
+  - Copy Chords
+  - Copy Full Analysis
+  - Copy Song Section
+  - Insert result into current note
+  - Save as Chord Note
+  - Recent transpose history
+  - Remember recent original/target keys
+
+### Supabase
+No new SQL migration is required for this update.

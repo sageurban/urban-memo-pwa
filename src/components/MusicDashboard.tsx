@@ -141,8 +141,8 @@ export default function MusicDashboard({
     <section className="music-dashboard">
       <button type="button" className="dashboard-toggle" onClick={() => setIsOpen((value) => !value)}>
         <span>
-          <strong>Music Dashboard & Chord Tools</strong>
-          <em>라이브러리 통계와 코드 조옮김</em>
+          <strong>Music Dashboard</strong>
+          <em>라이브러리 통계와 데이터 탐색</em>
         </span>
         <b>{isOpen ? '접기' : '열기'}</b>
       </button>

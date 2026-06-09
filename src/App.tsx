@@ -152,6 +152,7 @@ export default function App() {
   const [audioUploadStatus, setAudioUploadStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [mobileView, setMobileView] = useState<'folders' | 'editor'>('folders');
+  const [mainView, setMainView] = useState<'library' | 'dashboard' | 'tools' | 'settings'>('library');
   const [searchFocusSignal, setSearchFocusSignal] = useState(0);
   const [chordToolSeed, setChordToolSeed] = useState('');
   const [chordToolOpenSignal, setChordToolOpenSignal] = useState(0);
@@ -310,6 +311,7 @@ export default function App() {
         setSelectedNoteId(null);
         setSelectedFolderId('all');
         setMobileView('folders');
+        setMainView('library');
       }
     });
 
@@ -418,6 +420,7 @@ export default function App() {
     setNotes((prev) => [optimisticNote, ...prev]);
     setSelectedNoteId(optimisticNote.id);
     setMobileView('editor');
+    setMainView('library');
 
     const { data, error } = await supabase
       .from('notes')
@@ -441,6 +444,7 @@ export default function App() {
     setNotes((prev) => prev.map((note) => (note.id === optimisticNote.id ? data : note)));
     setSelectedNoteId(data.id);
     setMobileView('editor');
+    setMainView('library');
   }
 
   const handleUpdateNote = useCallback(async (noteId: string, values: Pick<Note, 'title' | 'content'>) => {
@@ -811,6 +815,7 @@ export default function App() {
     setNotes((prev) => [optimisticNote, ...prev]);
     setSelectedNoteId(optimisticNote.id);
     setMobileView('editor');
+    setMainView('library');
 
     const { data, error } = await supabase
       .from('notes')
@@ -833,6 +838,42 @@ export default function App() {
 
     setNotes((prev) => prev.map((note) => (note.id === optimisticNote.id ? { ...data, note_type: data.note_type ?? 'general', metadata: data.metadata ?? {} } as Note : note)));
     setSelectedNoteId(data.id);
+    setMainView('library');
+  }
+
+
+  function handleInsertChordIntoCurrentNote(payload: {
+    transposedProgression: string;
+    fullAnalysis: string;
+    songSection: string;
+  }) {
+    if (!selectedNote) {
+      setErrorMessage('먼저 코드를 삽입할 메모를 선택해주세요.');
+      setMainView('library');
+      setMobileView('folders');
+      return;
+    }
+
+    const html = `
+      <section><strong>Chord Transpose Result</strong><br>${payload.songSection.replace(/\n/g, '<br>')}<br><br>${payload.fullAnalysis.replace(/\n/g, '<br>')}</section>
+    `;
+    const nextContent = `${selectedNote.content || ''}${selectedNote.content ? '<br><br>' : ''}${html}`;
+    handleUpdateNote(selectedNote.id, { title: selectedNote.title, content: nextContent });
+    setMainView('library');
+    setMobileView('editor');
+  }
+
+  function applyDashboardFilters(nextFilters: Partial<AdvancedFilters>, nextTypeFilter: 'all' | NoteType = 'all') {
+    setAdvancedFilters((current) => ({ ...current, ...nextFilters }));
+    setTypeFilter(nextTypeFilter);
+    setMainView('library');
+    setMobileView('folders');
+  }
+
+  function clearAllFilters() {
+    setAdvancedFilters(EMPTY_ADVANCED_FILTERS);
+    setTypeFilter('all');
+    setSearchTerm('');
   }
 
   async function handleLogout() {
@@ -848,7 +889,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app-shell mobile-view-${mobileView}`}>
+    <div className={`app-shell main-view-${mainView} mobile-view-${mobileView}`}>
       <NoteList
         notes={filteredNotes}
         allNotes={notes}
@@ -864,6 +905,7 @@ export default function App() {
         onSelectNote={(note) => {
           setSelectedNoteId(note.id);
           setMobileView('editor');
+          setMainView('library');
         }}
         onCreateNote={handleCreateNote}
         onTogglePin={handleTogglePin}
@@ -874,15 +916,25 @@ export default function App() {
         onTypeFilterChange={setTypeFilter}
         advancedFilters={advancedFilters}
         onAdvancedFiltersChange={setAdvancedFilters}
-        onClearAdvancedFilters={() => setAdvancedFilters(EMPTY_ADVANCED_FILTERS)}
+        onClearAdvancedFilters={clearAllFilters}
       />
 
       <main className="main-panel">
-        <header className="top-bar">
+        <header className="top-bar app-top-bar-v5">
           <div>
             <strong>{session.user.email}</strong>
-            <span>Private synced workspace</span>
+            <span>{mainView === 'library' ? 'Library workspace' : mainView === 'dashboard' ? 'Dashboard explorer' : mainView === 'tools' ? 'Composition tools' : 'Settings'}</span>
           </div>
+
+          <nav className="main-view-tabs" aria-label="Main workspace views">
+            <button type="button" className={mainView === 'library' ? 'active' : ''} onClick={() => setMainView('library')}>Library</button>
+            <button type="button" className={mainView === 'dashboard' ? 'active' : ''} onClick={() => setMainView('dashboard')}>Dashboard</button>
+            <button type="button" className={mainView === 'tools' ? 'active' : ''} onClick={() => {
+              setMainView('tools');
+              setChordToolOpenSignal((value) => value + 1);
+            }}>Tools</button>
+          </nav>
+
           <button type="button" className="ghost-button" onClick={handleLogout}>
             Logout
           </button>
@@ -890,70 +942,127 @@ export default function App() {
 
         {errorMessage && <div className="error-banner">{errorMessage}</div>}
 
-        <MusicDashboard
-          notes={notes}
-          audioFiles={audioFiles}
-          audioMarkers={audioMarkers}
-          onApplyFilters={(nextFilters, nextTypeFilter = 'all') => {
-            setAdvancedFilters((current) => ({ ...current, ...nextFilters }));
-            setTypeFilter(nextTypeFilter);
-            setMobileView('folders');
-          }}
-          onOpenChordTool={(progression) => {
-            if (progression) setChordToolSeed(progression);
-            setChordToolOpenSignal((value) => value + 1);
-          }}
-        />
+        {mainView === 'dashboard' && (
+          <section className="workspace-view dashboard-view">
+            <div className="workspace-view-header">
+              <div>
+                <strong>Dashboard</strong>
+                <span>쌓인 음악 데이터를 클릭해서 바로 라이브러리 필터로 이동하세요.</span>
+              </div>
+              <button type="button" onClick={clearAllFilters}>Clear Filters</button>
+            </div>
+            <MusicDashboard
+              notes={notes}
+              audioFiles={audioFiles}
+              audioMarkers={audioMarkers}
+              onApplyFilters={applyDashboardFilters}
+              onOpenChordTool={(progression) => {
+                if (progression) setChordToolSeed(progression);
+                setChordToolOpenSignal((value) => value + 1);
+                setMainView('tools');
+              }}
+            />
+          </section>
+        )}
 
-        <NoteEditor
-          note={selectedNote}
-          folders={folders}
-          audioFiles={selectedNoteAudioFiles}
-          audioMarkers={selectedNoteAudioMarkers}
-          saveStatus={saveStatus}
-          audioUploadStatus={audioUploadStatus}
-          onUpdateNote={handleUpdateNote}
-          onUpdateNoteMeta={handleUpdateNoteMeta}
-          onChangeNoteFolder={handleChangeNoteFolder}
-          onUploadAudio={handleUploadAudio}
-          onDeleteAudio={handleDeleteAudio}
-          onCreateAudioMarker={handleCreateAudioMarker}
-          onUpdateAudioMarker={handleUpdateAudioMarker}
-          onDeleteAudioMarker={handleDeleteAudioMarker}
-          onTogglePin={handleTogglePin}
-          onDeleteNote={handleDeleteNote}
-          onBackToList={() => setMobileView('folders')}
-        />
+        {mainView === 'tools' && (
+          <section className="workspace-view tools-view">
+            <div className="workspace-view-header">
+              <div>
+                <strong>Tools</strong>
+                <span>코드 조옮김 도구를 메모와 분리해 항상 사용할 수 있게 정리했습니다.</span>
+              </div>
+              <button type="button" onClick={() => setChordToolOpenSignal((value) => value + 1)}>Open Chord Tool</button>
+            </div>
+            <div className="tools-page-grid">
+              <article>
+                <b>Chord Transpose Widget</b>
+                <p>진행을 입력하고 목표 Key를 선택하면 곧바로 조옮김됩니다.</p>
+                <button type="button" onClick={() => setChordToolOpenSignal((value) => value + 1)}>Open Floating Widget</button>
+              </article>
+              <article>
+                <b>Insert to Current Note</b>
+                <p>조옮김 결과를 현재 선택된 메모 본문에 바로 삽입할 수 있습니다.</p>
+              </article>
+              <article>
+                <b>Copy Formats</b>
+                <p>Chord only, Full analysis, Song section 형식으로 복사할 수 있습니다.</p>
+              </article>
+            </div>
+          </section>
+        )}
+
+        {mainView === 'settings' && (
+          <section className="workspace-view settings-view">
+            <div className="workspace-view-header">
+              <div>
+                <strong>Settings</strong>
+                <span>현재는 로그아웃과 동기화 상태 확인 중심으로 정리했습니다.</span>
+              </div>
+            </div>
+            <div className="settings-card-v5">
+              <strong>Sync Status</strong>
+              <p>Supabase와 연결된 개인 라이브러리입니다. 모든 변경은 자동 저장됩니다.</p>
+              <button type="button" onClick={handleLogout}>Logout</button>
+            </div>
+          </section>
+        )}
+
+        {mainView === 'library' && (
+          <NoteEditor
+            note={selectedNote}
+            folders={folders}
+            audioFiles={selectedNoteAudioFiles}
+            audioMarkers={selectedNoteAudioMarkers}
+            saveStatus={saveStatus}
+            audioUploadStatus={audioUploadStatus}
+            onUpdateNote={handleUpdateNote}
+            onUpdateNoteMeta={handleUpdateNoteMeta}
+            onChangeNoteFolder={handleChangeNoteFolder}
+            onUploadAudio={handleUploadAudio}
+            onDeleteAudio={handleDeleteAudio}
+            onCreateAudioMarker={handleCreateAudioMarker}
+            onUpdateAudioMarker={handleUpdateAudioMarker}
+            onDeleteAudioMarker={handleDeleteAudioMarker}
+            onTogglePin={handleTogglePin}
+            onDeleteNote={handleDeleteNote}
+            onBackToList={() => setMobileView('folders')}
+          />
+        )}
       </main>
 
       <ChordTransposeWidget
         seedProgression={chordToolSeed}
         openSignal={chordToolOpenSignal}
         onSaveTransposedChordNote={handleSaveTransposedChordNote}
+        onInsertIntoCurrentNote={handleInsertChordIntoCurrentNote}
       />
 
       <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
-        <button type="button" className={mobileView === 'folders' ? 'active' : ''} onClick={() => setMobileView('folders')}>
+        <button type="button" className={mainView === 'library' && mobileView === 'folders' ? 'active' : ''} onClick={() => {
+          setMainView('library');
+          setMobileView('folders');
+        }}>
           <span>▣</span>
-          <em>폴더</em>
+          <em>Library</em>
         </button>
-        <button type="button" className={mobileView === 'folders' ? 'active' : ''} onClick={() => setMobileView('folders')}>
-          <span>✎</span>
-          <em>메모</em>
+        <button type="button" className={mainView === 'dashboard' ? 'active' : ''} onClick={() => setMainView('dashboard')}>
+          <span>◫</span>
+          <em>Dashboard</em>
         </button>
         <button type="button" className="center-action" onClick={() => handleCreateNote()}>
           +
         </button>
-        <button type="button" onClick={() => {
-          setMobileView('folders');
-          setSearchFocusSignal((value) => value + 1);
+        <button type="button" className={mainView === 'tools' ? 'active' : ''} onClick={() => {
+          setMainView('tools');
+          setChordToolOpenSignal((value) => value + 1);
         }}>
-          <span>⌕</span>
-          <em>검색</em>
+          <span>♬</span>
+          <em>Tools</em>
         </button>
-        <button type="button" className={mobileView === 'editor' ? 'active' : ''} onClick={() => setMobileView('editor')}>
-          <span>▤</span>
-          <em>편집</em>
+        <button type="button" className={mainView === 'settings' ? 'active' : ''} onClick={() => setMainView('settings')}>
+          <span>⚙</span>
+          <em>Settings</em>
         </button>
       </nav>
     </div>
