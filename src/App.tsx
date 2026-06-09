@@ -4,13 +4,19 @@ import Auth from './components/Auth';
 import NoteEditor from './components/NoteEditor';
 import NoteList from './components/NoteList';
 import { supabase } from './lib/supabase';
-import { Note, SaveStatus } from './types/note';
+import { AudioFile, Folder, Note, SaveStatus } from './types/note';
 
-function createLocalNote(userId: string): Note {
+type FolderFilter = 'all' | 'unfiled' | string;
+
+const AUDIO_BUCKET = 'note-audio';
+const SIGNED_URL_EXPIRES_IN = 60 * 60 * 24;
+
+function createLocalNote(userId: string, folderId: string | null): Note {
   const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
     user_id: userId,
+    folder_id: folderId,
     title: 'Untitled',
     content: '',
     is_pinned: false,
@@ -21,13 +27,59 @@ function createLocalNote(userId: string): Note {
   };
 }
 
+function createLocalFolder(userId: string, name: string): Folder {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    user_id: userId,
+    name,
+    created_at: now,
+    updated_at: now
+  };
+}
+
+function isMp3File(file: File) {
+  const lowerName = file.name.toLowerCase();
+  return file.type === 'audio/mpeg' || file.type === 'audio/mp3' || lowerName.endsWith('.mp3');
+}
+
+function sanitizeFileName(fileName: string) {
+  return fileName
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 120);
+}
+
+async function attachSignedUrls(files: AudioFile[]): Promise<AudioFile[]> {
+  if (files.length === 0) return [];
+
+  const signedFiles = await Promise.all(
+    files.map(async (file) => {
+      const { data, error } = await supabase.storage
+        .from(AUDIO_BUCKET)
+        .createSignedUrl(file.file_path, SIGNED_URL_EXPIRES_IN);
+
+      if (error) return file;
+      return { ...file, signed_url: data.signedUrl };
+    })
+  );
+
+  return signedFiles;
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<FolderFilter>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [audioUploadStatus, setAudioUploadStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
   const selectedNote = useMemo(() => {
@@ -39,6 +91,8 @@ export default function App() {
 
     return notes
       .filter((note) => {
+        if (selectedFolderId === 'unfiled' && note.folder_id !== null) return false;
+        if (selectedFolderId !== 'all' && selectedFolderId !== 'unfiled' && note.folder_id !== selectedFolderId) return false;
         if (!keyword) return true;
         return `${note.title} ${note.content}`.toLowerCase().includes(keyword);
       })
@@ -46,7 +100,47 @@ export default function App() {
         if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
         return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       });
-  }, [notes, searchTerm]);
+  }, [notes, selectedFolderId, searchTerm]);
+
+  const selectedNoteAudioFiles = useMemo(() => {
+    if (!selectedNoteId) return [];
+    return audioFiles.filter((file) => file.note_id === selectedNoteId);
+  }, [audioFiles, selectedNoteId]);
+
+  const fetchFolders = useCallback(async () => {
+    if (!session?.user.id) return;
+
+    const { data, error } = await supabase
+      .from('folders')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('name', { ascending: true });
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setFolders(data ?? []);
+  }, [session?.user.id]);
+
+  const fetchAudioFiles = useCallback(async () => {
+    if (!session?.user.id) return;
+
+    const { data, error } = await supabase
+      .from('audio_files')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    const nextFiles = await attachSignedUrls(data ?? []);
+    setAudioFiles(nextFiles);
+  }, [session?.user.id]);
 
   const fetchNotes = useCallback(async () => {
     if (!session?.user.id) return;
@@ -72,6 +166,10 @@ export default function App() {
     }
   }, [session?.user.id, selectedNoteId]);
 
+  const refreshWorkspace = useCallback(async () => {
+    await Promise.all([fetchFolders(), fetchNotes(), fetchAudioFiles()]);
+  }, [fetchFolders, fetchNotes, fetchAudioFiles]);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
@@ -81,8 +179,11 @@ export default function App() {
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (!nextSession) {
+        setFolders([]);
         setNotes([]);
+        setAudioFiles([]);
         setSelectedNoteId(null);
+        setSelectedFolderId('all');
       }
     });
 
@@ -91,12 +192,12 @@ export default function App() {
 
   useEffect(() => {
     if (!session) return;
-    fetchNotes();
-  }, [session, fetchNotes]);
+    refreshWorkspace();
+  }, [session, refreshWorkspace]);
 
   useEffect(() => {
     function handleFocus() {
-      fetchNotes();
+      refreshWorkspace();
     }
 
     window.addEventListener('focus', handleFocus);
@@ -106,13 +207,62 @@ export default function App() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
-  }, [fetchNotes]);
+  }, [refreshWorkspace]);
+
+  useEffect(() => {
+    if (!selectedNoteId) return;
+    if (filteredNotes.some((note) => note.id === selectedNoteId)) return;
+    setSelectedNoteId(filteredNotes[0]?.id ?? null);
+  }, [filteredNotes, selectedNoteId]);
+
+  async function handleCreateFolder(name: string) {
+    if (!session?.user.id) return;
+
+    setErrorMessage('');
+    const optimisticFolder = createLocalFolder(session.user.id, name);
+    setFolders((prev) => [...prev, optimisticFolder].sort((a, b) => a.name.localeCompare(b.name)));
+    setSelectedFolderId(optimisticFolder.id);
+
+    const { data, error } = await supabase
+      .from('folders')
+      .insert({ user_id: session.user.id, name })
+      .select('*')
+      .single();
+
+    if (error) {
+      setErrorMessage(error.message);
+      setFolders((prev) => prev.filter((folder) => folder.id !== optimisticFolder.id));
+      setSelectedFolderId('all');
+      return;
+    }
+
+    setFolders((prev) => prev.map((folder) => (folder.id === optimisticFolder.id ? data : folder)));
+    setSelectedFolderId(data.id);
+  }
+
+  async function handleDeleteFolder(folder: Folder) {
+    const ok = window.confirm(`Delete folder "${folder.name}"?\n메모는 삭제되지 않고 Unfiled로 이동됩니다.`);
+    if (!ok) return;
+
+    setErrorMessage('');
+    setFolders((prev) => prev.filter((item) => item.id !== folder.id));
+    setNotes((prev) => prev.map((note) => (note.folder_id === folder.id ? { ...note, folder_id: null } : note)));
+    if (selectedFolderId === folder.id) setSelectedFolderId('all');
+
+    const { error } = await supabase.from('folders').delete().eq('id', folder.id);
+
+    if (error) {
+      setErrorMessage(error.message);
+      refreshWorkspace();
+    }
+  }
 
   async function handleCreateNote() {
     if (!session?.user.id) return;
 
     setErrorMessage('');
-    const optimisticNote = createLocalNote(session.user.id);
+    const folderId = selectedFolderId !== 'all' && selectedFolderId !== 'unfiled' ? selectedFolderId : null;
+    const optimisticNote = createLocalNote(session.user.id, folderId);
     setNotes((prev) => [optimisticNote, ...prev]);
     setSelectedNoteId(optimisticNote.id);
 
@@ -120,6 +270,7 @@ export default function App() {
       .from('notes')
       .insert({
         user_id: session.user.id,
+        folder_id: optimisticNote.folder_id,
         title: optimisticNote.title,
         content: optimisticNote.content
       })
@@ -161,6 +312,27 @@ export default function App() {
     setSaveStatus('saved');
     window.setTimeout(() => setSaveStatus('idle'), 1200);
   }, []);
+
+  async function handleChangeNoteFolder(noteId: string, folderId: string | null) {
+    setErrorMessage('');
+    const now = new Date().toISOString();
+
+    setNotes((prev) =>
+      prev.map((note) =>
+        note.id === noteId ? { ...note, folder_id: folderId, updated_at: now } : note
+      )
+    );
+
+    const { error } = await supabase
+      .from('notes')
+      .update({ folder_id: folderId, updated_at: now })
+      .eq('id', noteId);
+
+    if (error) {
+      setErrorMessage(error.message);
+      refreshWorkspace();
+    }
+  }
 
   async function handleTogglePin(note: Note) {
     setErrorMessage('');
@@ -205,6 +377,89 @@ export default function App() {
     }
   }
 
+  async function handleUploadAudio(note: Note, file: File) {
+    if (!session?.user.id) return;
+
+    setErrorMessage('');
+    setAudioUploadStatus('');
+
+    if (!isMp3File(file)) {
+      setAudioUploadStatus('MP3 파일만 업로드할 수 있습니다.');
+      return;
+    }
+
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setAudioUploadStatus('파일 크기는 50MB 이하로 업로드해주세요.');
+      return;
+    }
+
+    setAudioUploadStatus('Uploading MP3...');
+
+    const safeName = sanitizeFileName(file.name || 'audio.mp3');
+    const filePath = `${session.user.id}/${note.id}/${crypto.randomUUID()}-${safeName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(AUDIO_BUCKET)
+      .upload(filePath, file, {
+        contentType: file.type || 'audio/mpeg',
+        upsert: false
+      });
+
+    if (uploadError) {
+      setErrorMessage(uploadError.message);
+      setAudioUploadStatus('MP3 업로드에 실패했습니다.');
+      return;
+    }
+
+    const { data, error: insertError } = await supabase
+      .from('audio_files')
+      .insert({
+        user_id: session.user.id,
+        note_id: note.id,
+        file_name: file.name,
+        file_path: filePath,
+        file_size: file.size,
+        mime_type: file.type || 'audio/mpeg'
+      })
+      .select('*')
+      .single();
+
+    if (insertError) {
+      await supabase.storage.from(AUDIO_BUCKET).remove([filePath]);
+      setErrorMessage(insertError.message);
+      setAudioUploadStatus('MP3 메타데이터 저장에 실패했습니다.');
+      return;
+    }
+
+    const [nextAudio] = await attachSignedUrls([data]);
+    setAudioFiles((prev) => [nextAudio, ...prev]);
+    setAudioUploadStatus('MP3가 저장되었습니다.');
+    window.setTimeout(() => setAudioUploadStatus(''), 1800);
+  }
+
+  async function handleDeleteAudio(audioFile: AudioFile) {
+    const ok = window.confirm(`Delete "${audioFile.file_name}"?`);
+    if (!ok) return;
+
+    setErrorMessage('');
+    setAudioFiles((prev) => prev.filter((file) => file.id !== audioFile.id));
+
+    const { error: storageError } = await supabase.storage
+      .from(AUDIO_BUCKET)
+      .remove([audioFile.file_path]);
+
+    const { error: dbError } = await supabase
+      .from('audio_files')
+      .delete()
+      .eq('id', audioFile.id);
+
+    if (storageError || dbError) {
+      setErrorMessage(storageError?.message ?? dbError?.message ?? 'Failed to delete MP3');
+      fetchAudioFiles();
+    }
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
   }
@@ -221,9 +476,14 @@ export default function App() {
     <div className="app-shell">
       <NoteList
         notes={filteredNotes}
+        folders={folders}
         selectedNoteId={selectedNoteId}
+        selectedFolderId={selectedFolderId}
         searchTerm={searchTerm}
         onSearchTermChange={setSearchTerm}
+        onSelectFolder={setSelectedFolderId}
+        onCreateFolder={handleCreateFolder}
+        onDeleteFolder={handleDeleteFolder}
         onSelectNote={(note) => setSelectedNoteId(note.id)}
         onCreateNote={handleCreateNote}
         onTogglePin={handleTogglePin}
@@ -245,8 +505,14 @@ export default function App() {
 
         <NoteEditor
           note={selectedNote}
+          folders={folders}
+          audioFiles={selectedNoteAudioFiles}
           saveStatus={saveStatus}
+          audioUploadStatus={audioUploadStatus}
           onUpdateNote={handleUpdateNote}
+          onChangeNoteFolder={handleChangeNoteFolder}
+          onUploadAudio={handleUploadAudio}
+          onDeleteAudio={handleDeleteAudio}
         />
       </main>
     </div>

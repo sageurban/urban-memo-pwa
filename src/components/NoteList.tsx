@@ -1,10 +1,18 @@
-import { Note } from '../types/note';
+import { FormEvent, useMemo, useState } from 'react';
+import { Folder, Note } from '../types/note';
+
+type FolderFilter = 'all' | 'unfiled' | string;
 
 type NoteListProps = {
   notes: Note[];
+  folders: Folder[];
   selectedNoteId: string | null;
+  selectedFolderId: FolderFilter;
   searchTerm: string;
   onSearchTermChange: (value: string) => void;
+  onSelectFolder: (folderId: FolderFilter) => void;
+  onCreateFolder: (name: string) => void;
+  onDeleteFolder: (folder: Folder) => void;
   onSelectNote: (note: Note) => void;
   onCreateNote: () => void;
   onTogglePin: (note: Note) => void;
@@ -22,14 +30,39 @@ function formatDate(value: string) {
 
 export default function NoteList({
   notes,
+  folders,
   selectedNoteId,
+  selectedFolderId,
   searchTerm,
   onSearchTermChange,
+  onSelectFolder,
+  onCreateFolder,
+  onDeleteFolder,
   onSelectNote,
   onCreateNote,
   onTogglePin,
   onDeleteNote
 }: NoteListProps) {
+  const [newFolderName, setNewFolderName] = useState('');
+
+  const noteCountByFolder = useMemo(() => {
+    return notes.reduce<Record<string, number>>((acc, note) => {
+      const key = note.folder_id ?? 'unfiled';
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+  }, [notes]);
+
+  const unfiledCount = noteCountByFolder.unfiled ?? 0;
+
+  function handleCreateFolder(event: FormEvent) {
+    event.preventDefault();
+    const name = newFolderName.trim();
+    if (!name) return;
+    onCreateFolder(name);
+    setNewFolderName('');
+  }
+
   return (
     <aside className="sidebar">
       <header className="sidebar-header">
@@ -41,6 +74,62 @@ export default function NoteList({
           +
         </button>
       </header>
+
+      <section className="folder-panel" aria-label="Folders">
+        <div className="folder-panel-header">
+          <strong>Folders</strong>
+          <span>{folders.length}</span>
+        </div>
+
+        <button
+          type="button"
+          className={`folder-row ${selectedFolderId === 'all' ? 'active' : ''}`}
+          onClick={() => onSelectFolder('all')}
+        >
+          <span>All Notes</span>
+          <em>{notes.length}</em>
+        </button>
+
+        <button
+          type="button"
+          className={`folder-row ${selectedFolderId === 'unfiled' ? 'active' : ''}`}
+          onClick={() => onSelectFolder('unfiled')}
+        >
+          <span>Unfiled</span>
+          <em>{unfiledCount}</em>
+        </button>
+
+        {folders.map((folder) => (
+          <div className="folder-row-wrap" key={folder.id}>
+            <button
+              type="button"
+              className={`folder-row ${selectedFolderId === folder.id ? 'active' : ''}`}
+              onClick={() => onSelectFolder(folder.id)}
+            >
+              <span>{folder.name}</span>
+              <em>{noteCountByFolder[folder.id] ?? 0}</em>
+            </button>
+            <button
+              type="button"
+              className="folder-delete"
+              onClick={() => onDeleteFolder(folder)}
+              title="Delete folder"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+
+        <form className="folder-form" onSubmit={handleCreateFolder}>
+          <input
+            value={newFolderName}
+            onChange={(event) => setNewFolderName(event.target.value)}
+            placeholder="New folder"
+            maxLength={40}
+          />
+          <button type="submit">Add</button>
+        </form>
+      </section>
 
       <input
         className="search-input"
