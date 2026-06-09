@@ -17,7 +17,7 @@ type NoteListProps = {
   onUpdateFolder: (folder: Folder, values: Partial<Pick<Folder, 'name' | 'color' | 'parent_id'>>) => void;
   onDeleteFolder: (folder: Folder) => void;
   onSelectNote: (note: Note) => void;
-  onCreateNote: (noteType?: NoteType) => void;
+  onCreateNote: (noteTypes?: NoteType | NoteType[]) => void;
   onTogglePin: (note: Note) => void;
   onChangeNoteFolder: (noteId: string, folderId: string | null) => void;
   onDeleteNote: (note: Note) => void;
@@ -146,6 +146,7 @@ export default function NoteList({
   const [newFolderParentId, setNewFolderParentId] = useState('');
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<NoteType[]>(['song_analysis']);
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => loadCollapsedFolders());
   const [openFolderMenuId, setOpenFolderMenuId] = useState<string | null>(null);
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
@@ -281,6 +282,22 @@ export default function NoteList({
     const folderId = nextFolderId || null;
     onChangeNoteFolder(note.id, folderId);
     setMovingNoteId(null);
+  }
+
+  function toggleTemplateSelection(templateId: NoteType) {
+    setSelectedTemplateIds((current) => {
+      if (current.includes(templateId)) {
+        const next = current.filter((id) => id !== templateId);
+        return next.length > 0 ? next : ['general'];
+      }
+      if (templateId === 'general') return ['general'];
+      return [...current.filter((id) => id !== 'general'), templateId];
+    });
+  }
+
+  function createNoteFromSelectedTemplates() {
+    onCreateNote(selectedTemplateIds);
+    setShowTemplatePicker(false);
   }
 
   function renderSystemFolder(id: FolderFilter, label: string, count: number, tone: string) {
@@ -560,26 +577,42 @@ export default function NoteList({
       </div>
 
       {showTemplatePicker && (
-        <div className="template-picker-card">
-          <div>
-            <strong>분석 템플릿 선택</strong>
-            <span>새 메모의 타입과 기본 양식을 선택하세요.</span>
+        <div className="template-picker-card multi-template-picker">
+          <div className="template-picker-head">
+            <div>
+              <strong>분석 템플릿 선택</strong>
+              <span>하나 또는 여러 템플릿을 선택해서 한 메모에 합칠 수 있어요.</span>
+            </div>
+            <em>{selectedTemplateIds.length} selected</em>
           </div>
+
           <div className="template-grid">
-            {NOTE_TYPE_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => {
-                  onCreateNote(option.id);
-                  setShowTemplatePicker(false);
-                }}
-              >
-                <i style={{ background: option.color }} />
-                <strong>{option.label}</strong>
-                <span>{option.description}</span>
-              </button>
-            ))}
+            {NOTE_TYPE_OPTIONS.map((option) => {
+              const selected = selectedTemplateIds.includes(option.id);
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={selected ? 'selected' : ''}
+                  onClick={() => toggleTemplateSelection(option.id)}
+                  style={{ borderColor: selected ? option.color : undefined }}
+                >
+                  <i style={{ background: option.color }} />
+                  <strong>{option.label}</strong>
+                  <span>{option.description}</span>
+                  <b>{selected ? '✓' : '+'}</b>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="template-picker-actions">
+            <button type="button" className="secondary-button" onClick={() => setShowTemplatePicker(false)}>
+              취소
+            </button>
+            <button type="button" className="create-button" onClick={createNoteFromSelectedTemplates}>
+              선택한 템플릿으로 메모 만들기
+            </button>
           </div>
         </div>
       )}

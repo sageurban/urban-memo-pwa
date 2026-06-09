@@ -177,3 +177,66 @@ export function templateContentForType(type: NoteType) {
       return '<p>Start writing...</p>';
   }
 }
+
+
+export function normalizeTemplateTypes(noteTypes: NoteType | NoteType[] | undefined): NoteType[] {
+  const raw = Array.isArray(noteTypes) ? noteTypes : [noteTypes ?? 'general'];
+  const validIds = new Set(NOTE_TYPE_OPTIONS.map((option) => option.id));
+  const unique = raw.filter((type, index, array) => validIds.has(type) && array.indexOf(type) === index);
+  return unique.length > 0 ? unique : ['general'];
+}
+
+export function defaultTitleForTypes(noteTypes: NoteType[]) {
+  const types = normalizeTemplateTypes(noteTypes);
+  if (types.length === 1) return defaultTitleForType(types[0]);
+  return `New Music Library Note (${types.length} templates)`;
+}
+
+export function defaultMetadataForTypes(noteTypes: NoteType[]): MusicMetadata {
+  const types = normalizeTemplateTypes(noteTypes);
+  const merged: MusicMetadata = {};
+  const tagParts: string[] = [];
+  const sourceParts: string[] = [];
+
+  types.forEach((type) => {
+    const metadata = defaultMetadataForType(type);
+    Object.entries(metadata).forEach(([key, value]) => {
+      if (!value) return;
+      if (key === 'tags') {
+        tagParts.push(String(value));
+        return;
+      }
+      if (key === 'source') {
+        sourceParts.push(String(value));
+        return;
+      }
+      if (!merged[key as keyof MusicMetadata]) {
+        (merged as Record<string, string>)[key] = String(value);
+      }
+    });
+  });
+
+  const selectedLabels = types.map((type) => getNoteTypeOption(type).shortLabel).join(', ');
+  merged.tags = [...tagParts, selectedLabels].filter(Boolean).join(', ');
+  merged.source = [...new Set(sourceParts)].filter(Boolean).join(' / ');
+  if (!merged.confidence) merged.confidence = 'Medium';
+  return merged;
+}
+
+export function templateContentForTypes(noteTypes: NoteType[]) {
+  const types = normalizeTemplateTypes(noteTypes);
+  if (types.length === 1) return templateContentForType(types[0]);
+
+  return [
+    '<h1>Combined Music Analysis Note</h1>',
+    '<p>선택한 여러 템플릿을 하나의 메모에 합친 구조입니다. 필요한 섹션만 채우고, 불필요한 섹션은 지워도 됩니다.</p>',
+    ...types.map((type) => {
+      const option = getNoteTypeOption(type);
+      return [
+        `<hr><h1>${option.label}</h1>`,
+        `<p><strong>Purpose:</strong> ${option.description}</p>`,
+        templateContentForType(type)
+      ].join('');
+    })
+  ].join('');
+}

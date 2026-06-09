@@ -2337,3 +2337,138 @@ button:disabled {
     grid-column: span 2;
   }
 }
+
+/* Template multi-select + sidebar scroll fix */
+.app-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar.sidebar-redesign {
+  height: 100vh;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 96px;
+}
+
+.sidebar-redesign .folder-panel,
+.sidebar-redesign .template-picker-card,
+.sidebar-redesign .note-list {
+  flex: 0 0 auto;
+}
+
+.sidebar-redesign .folder-panel {
+  max-height: none;
+  overflow: visible;
+}
+
+.sidebar-redesign .note-list {
+  overflow: visible;
+  padding-bottom: 40px;
+}
+
+.main-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.template-picker-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.template-picker-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.template-picker-head em {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.multi-template-picker .template-grid button {
+  position: relative;
+  grid-template-columns: 12px 1fr 26px;
+  align-items: center;
+}
+
+.multi-template-picker .template-grid button span {
+  grid-column: 2 / 3;
+}
+
+.multi-template-picker .template-grid button b {
+  grid-column: 3 / 4;
+  grid-row: 1 / span 2;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  color: var(--muted);
+}
+
+.multi-template-picker .template-grid button.selected {
+  background: rgba(255,255,255,0.075);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.multi-template-picker .template-grid button.selected b {
+  color: #9be39b;
+}
+
+.template-picker-actions {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.template-picker-actions button {
+  padding: 13px 14px;
+}
+
+.template-picker-actions .create-button {
+  width: 100%;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .sidebar.sidebar-redesign {
+    height: calc(100vh - 76px);
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 128px;
+  }
+
+  .app-shell.mobile-view-editor .sidebar.sidebar-redesign {
+    display: none;
+  }
+
+  .main-panel {
+    overflow: visible;
+  }
+
+  .template-picker-actions {
+    grid-template-columns: 1fr;
+  }
+}

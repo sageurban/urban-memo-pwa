@@ -5,7 +5,7 @@ import NoteEditor from './components/NoteEditor';
 import NoteList from './components/NoteList';
 import { supabase } from './lib/supabase';
 import { AudioFile, Folder, Note, SaveStatus } from './types/note';
-import { defaultMetadataForType, defaultTitleForType, MusicMetadata, NoteType, templateContentForType } from './lib/musicTemplates';
+import { defaultMetadataForTypes, defaultTitleForTypes, MusicMetadata, normalizeTemplateTypes, NoteType, templateContentForTypes } from './lib/musicTemplates';
 
 type FolderFilter = 'all' | 'unfiled' | string;
 
@@ -13,16 +13,18 @@ const AUDIO_BUCKET = 'note-audio';
 const SIGNED_URL_EXPIRES_IN = 60 * 60 * 24;
 const DEFAULT_FOLDER_COLOR = '#f4f0e8';
 
-function createLocalNote(userId: string, folderId: string | null, noteType: NoteType = 'general'): Note {
+function createLocalNote(userId: string, folderId: string | null, noteTypes: NoteType | NoteType[] = 'general'): Note {
   const now = new Date().toISOString();
+  const selectedTypes = normalizeTemplateTypes(noteTypes);
+  const primaryType = selectedTypes[0];
   return {
     id: crypto.randomUUID(),
     user_id: userId,
     folder_id: folderId,
-    note_type: noteType,
-    metadata: defaultMetadataForType(noteType),
-    title: defaultTitleForType(noteType),
-    content: templateContentForType(noteType),
+    note_type: primaryType,
+    metadata: defaultMetadataForTypes(selectedTypes),
+    title: defaultTitleForTypes(selectedTypes),
+    content: templateContentForTypes(selectedTypes),
     is_pinned: false,
     is_archived: false,
     deleted_at: null,
@@ -332,12 +334,12 @@ export default function App() {
     }
   }
 
-  async function handleCreateNote(noteType: NoteType = 'general') {
+  async function handleCreateNote(noteTypes: NoteType | NoteType[] = 'general') {
     if (!session?.user.id) return;
 
     setErrorMessage('');
     const folderId = selectedFolderId !== 'all' && selectedFolderId !== 'unfiled' ? selectedFolderId : null;
-    const optimisticNote = createLocalNote(session.user.id, folderId, noteType);
+    const optimisticNote = createLocalNote(session.user.id, folderId, noteTypes);
     setNotes((prev) => [optimisticNote, ...prev]);
     setSelectedNoteId(optimisticNote.id);
     setMobileView('editor');
