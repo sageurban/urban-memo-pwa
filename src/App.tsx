@@ -152,7 +152,7 @@ export default function App() {
   const [audioUploadStatus, setAudioUploadStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [mobileView, setMobileView] = useState<'folders' | 'editor'>('folders');
-  const [mainView, setMainView] = useState<'library' | 'dashboard' | 'tools' | 'settings'>('library');
+  const [mainView, setMainView] = useState<'library' | 'dashboard' | 'settings'>('library');
   const [searchFocusSignal, setSearchFocusSignal] = useState(0);
   const [chordToolSeed, setChordToolSeed] = useState('');
   const [chordToolOpenSignal, setChordToolOpenSignal] = useState(0);
@@ -923,16 +923,13 @@ export default function App() {
         <header className="top-bar app-top-bar-v5">
           <div>
             <strong>{session.user.email}</strong>
-            <span>{mainView === 'library' ? 'Library workspace' : mainView === 'dashboard' ? 'Dashboard explorer' : mainView === 'tools' ? 'Composition tools' : 'Settings'}</span>
+            <span>{mainView === 'library' ? 'Library workspace' : mainView === 'dashboard' ? 'Dashboard explorer' : 'Settings'}</span>
           </div>
 
           <nav className="main-view-tabs" aria-label="Main workspace views">
             <button type="button" className={mainView === 'library' ? 'active' : ''} onClick={() => setMainView('library')}>Library</button>
             <button type="button" className={mainView === 'dashboard' ? 'active' : ''} onClick={() => setMainView('dashboard')}>Dashboard</button>
-            <button type="button" className={mainView === 'tools' ? 'active' : ''} onClick={() => {
-              setMainView('tools');
-              setChordToolOpenSignal((value) => value + 1);
-            }}>Tools</button>
+            <button type="button" className={mainView === 'settings' ? 'active' : ''} onClick={() => setMainView('settings')}>Settings</button>
           </nav>
 
           <button type="button" className="ghost-button" onClick={handleLogout}>
@@ -959,36 +956,8 @@ export default function App() {
               onOpenChordTool={(progression) => {
                 if (progression) setChordToolSeed(progression);
                 setChordToolOpenSignal((value) => value + 1);
-                setMainView('tools');
               }}
             />
-          </section>
-        )}
-
-        {mainView === 'tools' && (
-          <section className="workspace-view tools-view">
-            <div className="workspace-view-header">
-              <div>
-                <strong>Tools</strong>
-                <span>코드 조옮김 도구를 메모와 분리해 항상 사용할 수 있게 정리했습니다.</span>
-              </div>
-              <button type="button" onClick={() => setChordToolOpenSignal((value) => value + 1)}>Open Chord Tool</button>
-            </div>
-            <div className="tools-page-grid">
-              <article>
-                <b>Chord Transpose Widget</b>
-                <p>진행을 입력하고 목표 Key를 선택하면 곧바로 조옮김됩니다.</p>
-                <button type="button" onClick={() => setChordToolOpenSignal((value) => value + 1)}>Open Floating Widget</button>
-              </article>
-              <article>
-                <b>Insert to Current Note</b>
-                <p>조옮김 결과를 현재 선택된 메모 본문에 바로 삽입할 수 있습니다.</p>
-              </article>
-              <article>
-                <b>Copy Formats</b>
-                <p>Chord only, Full analysis, Song section 형식으로 복사할 수 있습니다.</p>
-              </article>
-            </div>
           </section>
         )}
 
@@ -1046,21 +1015,28 @@ export default function App() {
           <span>▣</span>
           <em>Library</em>
         </button>
-        <button type="button" className={mainView === 'dashboard' ? 'active' : ''} onClick={() => setMainView('dashboard')}>
+        <button type="button" className={mainView === 'dashboard' ? 'active' : ''} onClick={() => {
+          setMainView('dashboard');
+          setMobileView('editor');
+        }}>
           <span>◫</span>
           <em>Dashboard</em>
         </button>
         <button type="button" className="center-action" onClick={() => handleCreateNote()}>
           +
         </button>
-        <button type="button" className={mainView === 'tools' ? 'active' : ''} onClick={() => {
-          setMainView('tools');
-          setChordToolOpenSignal((value) => value + 1);
+        <button type="button" onClick={() => {
+          setMainView('library');
+          setMobileView('folders');
+          setSearchFocusSignal((value) => value + 1);
         }}>
-          <span>♬</span>
-          <em>Tools</em>
+          <span>⌕</span>
+          <em>Search</em>
         </button>
-        <button type="button" className={mainView === 'settings' ? 'active' : ''} onClick={() => setMainView('settings')}>
+        <button type="button" className={mainView === 'settings' ? 'active' : ''} onClick={() => {
+          setMainView('settings');
+          setMobileView('editor');
+        }}>
           <span>⚙</span>
           <em>Settings</em>
         </button>
