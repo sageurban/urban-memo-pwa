@@ -1,5 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AudioFile, Folder, Note, SaveStatus } from '../types/note';
+import { getNoteTypeOption, MusicMetadata } from '../lib/musicTemplates';
 
 type NoteEditorProps = {
   note: Note | null;
@@ -8,6 +9,7 @@ type NoteEditorProps = {
   saveStatus: SaveStatus;
   audioUploadStatus: string;
   onUpdateNote: (noteId: string, values: Pick<Note, 'title' | 'content'>) => void;
+  onUpdateNoteMeta: (noteId: string, metadata: MusicMetadata) => void;
   onChangeNoteFolder: (noteId: string, folderId: string | null) => void;
   onUploadAudio: (note: Note, file: File) => void;
   onDeleteAudio: (audioFile: AudioFile) => void;
@@ -109,6 +111,7 @@ export default function NoteEditor({
   saveStatus,
   audioUploadStatus,
   onUpdateNote,
+  onUpdateNoteMeta,
   onChangeNoteFolder,
   onUploadAudio,
   onDeleteAudio,
@@ -120,6 +123,7 @@ export default function NoteEditor({
   const [content, setContent] = useState('');
   const [textColor, setTextColor] = useState(TEXT_COLOR_PRESETS[0]);
   const [fontSize, setFontSize] = useState('3');
+  const [metadata, setMetadata] = useState<MusicMetadata>({});
   const [showNoteMenu, setShowNoteMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -131,6 +135,7 @@ export default function NoteEditor({
     if (editorRef.current) editorRef.current.innerHTML = nextContent;
     setTextColor(TEXT_COLOR_PRESETS[0]);
     setFontSize('3');
+    setMetadata(note?.metadata ?? {});
   }, [note?.id]);
 
   useEffect(() => {
@@ -143,6 +148,19 @@ export default function NoteEditor({
 
     return () => window.clearTimeout(timer);
   }, [title, content, note, onUpdateNote]);
+
+  useEffect(() => {
+    if (!note) return;
+    const current = JSON.stringify(note.metadata ?? {});
+    const next = JSON.stringify(metadata ?? {});
+    if (current === next) return;
+
+    const timer = window.setTimeout(() => {
+      onUpdateNoteMeta(note.id, metadata);
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [metadata, note, onUpdateNoteMeta]);
 
   const characterCount = useMemo(() => {
     const text = getTextFromHtml(content).trim();
@@ -170,6 +188,10 @@ export default function NoteEditor({
   function applyFontSize(value: string) {
     setFontSize(value);
     applyCommand('fontSize', value);
+  }
+
+  function updateMetaField(field: keyof MusicMetadata, value: string) {
+    setMetadata((prev) => ({ ...prev, [field]: value }));
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -222,7 +244,7 @@ export default function NoteEditor({
         <div className="editor-mobile-topline">
           <button type="button" className="mobile-nav-button" onClick={onBackToList}>‹</button>
           <div className="editor-mobile-title">
-            <strong>메모 편집</strong>
+            <strong>{getNoteTypeOption(note.note_type).label}</strong>
             <span><i>☁</i> {statusText(saveStatus)} • 방금 전</span>
           </div>
           <div className="mobile-action-group">
@@ -279,6 +301,27 @@ export default function NoteEditor({
               ))}
             </select>
           </label>
+        </div>
+
+        <div className="editor-card music-meta-card">
+          <div className="music-meta-header">
+            <span className="note-type-large-badge" style={{ borderColor: getNoteTypeOption(note.note_type).color, color: getNoteTypeOption(note.note_type).color }}>
+              {getNoteTypeOption(note.note_type).label}
+            </span>
+            <small>검색/필터에 쓰이는 음악 분석 데이터</small>
+          </div>
+          <div className="music-meta-grid">
+            <label>Genre<input value={metadata.genre ?? ''} onChange={(event) => updateMetaField('genre', event.target.value)} placeholder="K-pop / R&B" /></label>
+            <label>BPM<input value={metadata.bpm ?? ''} onChange={(event) => updateMetaField('bpm', event.target.value)} placeholder="134" inputMode="numeric" /></label>
+            <label>Key<input value={metadata.key ?? ''} onChange={(event) => updateMetaField('key', event.target.value)} placeholder="B Major" /></label>
+            <label>Mood<input value={metadata.mood ?? ''} onChange={(event) => updateMetaField('mood', event.target.value)} placeholder="청량 / nostalgic" /></label>
+            <label>Section<input value={metadata.section ?? ''} onChange={(event) => updateMetaField('section', event.target.value)} placeholder="Chorus" /></label>
+            <label>Harmony<input value={metadata.harmony ?? ''} onChange={(event) => updateMetaField('harmony', event.target.value)} placeholder="Modal Interchange" /></label>
+            <label>Instrument<input value={metadata.instrument ?? ''} onChange={(event) => updateMetaField('instrument', event.target.value)} placeholder="EP Pluck" /></label>
+            <label>Confidence<select value={metadata.confidence ?? ''} onChange={(event) => updateMetaField('confidence', event.target.value)}><option value="">None</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option></select></label>
+            <label className="meta-wide">Tags<input value={metadata.tags ?? ''} onChange={(event) => updateMetaField('tags', event.target.value)} placeholder="chorus, bright, boy group" /></label>
+            <label className="meta-wide">Source<input value={metadata.source ?? ''} onChange={(event) => updateMetaField('source', event.target.value)} placeholder="직접 분석 / 공식 자료 / 추정" /></label>
+          </div>
         </div>
 
         <div className="editor-card controls-card">

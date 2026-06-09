@@ -1,3 +1,5 @@
+import { MusicMetadata, NoteType } from '../lib/musicTemplates';
+
 export type Folder = {
   id: string;
   user_id: string;
@@ -12,6 +14,8 @@ export type Note = {
   id: string;
   user_id: string;
   folder_id: string | null;
+  note_type: NoteType;
+  metadata: MusicMetadata;
   title: string;
   content: string;
   is_pinned: boolean;

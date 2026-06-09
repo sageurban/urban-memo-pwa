@@ -2143,3 +2143,197 @@ button:disabled {
   border-color: rgba(88,145,255,0.72);
   box-shadow: 0 0 0 3px rgba(88,145,255,0.15);
 }
+
+/* Urban Music Library v1: templates, type filters, metadata */
+.type-filter-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 4px;
+  scrollbar-width: none;
+}
+
+.type-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.type-filter-bar button {
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.03);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.type-filter-bar button.active {
+  color: var(--text);
+  background: rgba(255,255,255,0.08);
+}
+
+.template-picker-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 24px;
+  background: rgba(255,255,255,0.035);
+}
+
+.template-picker-card > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.template-picker-card span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.template-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.template-grid button {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 4px 10px;
+  text-align: left;
+  padding: 13px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text);
+}
+
+.template-grid button:hover {
+  transform: none;
+  background: rgba(255,255,255,0.06);
+}
+
+.template-grid button i {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  margin-top: 4px;
+}
+
+.template-grid button strong,
+.template-grid button span {
+  grid-column: 2;
+}
+
+.note-type-badge,
+.note-type-large-badge {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  background: rgba(255,255,255,0.035);
+  white-space: nowrap;
+}
+
+.note-type-large-badge {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.note-meta-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.note-meta-chips b {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.055);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.music-meta-card {
+  padding: 18px;
+}
+
+.music-meta-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.music-meta-header small {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.music-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.music-meta-grid label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.music-meta-grid input,
+.music-meta-grid select {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  background: rgba(0,0,0,0.24);
+  color: var(--text);
+  padding: 11px 12px;
+  outline: none;
+}
+
+.music-meta-grid input:focus,
+.music-meta-grid select:focus {
+  border-color: rgba(124,92,255,0.64);
+}
+
+.music-meta-grid .meta-wide {
+  grid-column: span 2;
+}
+
+@media (max-width: 1080px) {
+  .music-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .template-picker-card {
+    padding: 14px;
+  }
+
+  .music-meta-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .music-meta-header small {
+    text-align: left;
+  }
+
+  .music-meta-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .music-meta-grid .meta-wide {
+    grid-column: span 2;
+  }
+}

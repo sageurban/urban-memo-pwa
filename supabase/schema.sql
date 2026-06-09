@@ -50,6 +50,18 @@ create table if not exists public.notes (
 alter table public.notes
 add column if not exists folder_id uuid references public.folders(id) on delete set null;
 
+alter table public.notes
+add column if not exists note_type text not null default 'general';
+
+alter table public.notes
+add column if not exists metadata jsonb not null default '{}'::jsonb;
+
+create index if not exists notes_user_type_idx
+on public.notes (user_id, note_type, updated_at desc);
+
+create index if not exists notes_metadata_gin_idx
+on public.notes using gin (metadata);
+
 create table if not exists public.audio_files (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Folder, Note } from '../types/note';
+import { getNoteTypeOption, NOTE_TYPE_OPTIONS, NoteType } from '../lib/musicTemplates';
 
 type FolderFilter = 'all' | 'unfiled' | string;
 
@@ -16,11 +17,13 @@ type NoteListProps = {
   onUpdateFolder: (folder: Folder, values: Partial<Pick<Folder, 'name' | 'color' | 'parent_id'>>) => void;
   onDeleteFolder: (folder: Folder) => void;
   onSelectNote: (note: Note) => void;
-  onCreateNote: () => void;
+  onCreateNote: (noteType?: NoteType) => void;
   onTogglePin: (note: Note) => void;
   onChangeNoteFolder: (noteId: string, folderId: string | null) => void;
   onDeleteNote: (note: Note) => void;
   searchFocusSignal?: number;
+  typeFilter: 'all' | NoteType;
+  onTypeFilterChange: (value: 'all' | NoteType) => void;
 };
 
 type FolderNode = Folder & { children: FolderNode[]; depth: number };
@@ -134,12 +137,15 @@ export default function NoteList({
   onTogglePin,
   onChangeNoteFolder,
   onDeleteNote,
-  searchFocusSignal = 0
+  searchFocusSignal = 0,
+  typeFilter,
+  onTypeFilterChange
 }: NoteListProps) {
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderColor, setNewFolderColor] = useState(DEFAULT_FOLDER_COLOR);
   const [newFolderParentId, setNewFolderParentId] = useState('');
   const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => loadCollapsedFolders());
   const [openFolderMenuId, setOpenFolderMenuId] = useState<string | null>(null);
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
@@ -439,7 +445,7 @@ export default function NoteList({
       </header>
 
       <div className="folder-tip-banner">
-        <span>✦ 폴더 오른쪽 더보기 메뉴에서 이름 변경, 이동, 색상 변경을 할 수 있어요.</span>
+        <span>✦ 타입별 템플릿으로 분석 데이터를 통일하고, 검색/필터로 작곡 재료를 빠르게 찾을 수 있어요.</span>
       </div>
 
       <section className="folder-panel folder-panel-redesign" aria-label="Folders">
@@ -533,10 +539,50 @@ export default function NoteList({
         placeholder="메모 검색"
       />
 
+      <div className="type-filter-bar" aria-label="Note type filters">
+        <button type="button" className={typeFilter === 'all' ? 'active' : ''} onClick={() => onTypeFilterChange('all')}>All</button>
+        {NOTE_TYPE_OPTIONS.filter((option) => option.id !== 'general').map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className={typeFilter === option.id ? 'active' : ''}
+            onClick={() => onTypeFilterChange(option.id)}
+            style={{ borderColor: typeFilter === option.id ? option.color : undefined }}
+          >
+            {option.shortLabel}
+          </button>
+        ))}
+      </div>
+
       <div className="sidebar-subheader">
         <strong>메모</strong>
-        <button type="button" className="new-note-button" onClick={onCreateNote}>새 메모</button>
+        <button type="button" className="new-note-button" onClick={() => setShowTemplatePicker((current) => !current)}>새 메모</button>
       </div>
+
+      {showTemplatePicker && (
+        <div className="template-picker-card">
+          <div>
+            <strong>분석 템플릿 선택</strong>
+            <span>새 메모의 타입과 기본 양식을 선택하세요.</span>
+          </div>
+          <div className="template-grid">
+            {NOTE_TYPE_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => {
+                  onCreateNote(option.id);
+                  setShowTemplatePicker(false);
+                }}
+              >
+                <i style={{ background: option.color }} />
+                <strong>{option.label}</strong>
+                <span>{option.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="note-list">
         {notes.length === 0 ? (
@@ -556,9 +602,18 @@ export default function NoteList({
                 <div className="note-row-main">
                   <div className="note-row-title">
                     {note.is_pinned && <span className="pin-badge">Pinned</span>}
+                    <span className="note-type-badge" style={{ borderColor: getNoteTypeOption(note.note_type).color, color: getNoteTypeOption(note.note_type).color }}>
+                      {getNoteTypeOption(note.note_type).shortLabel}
+                    </span>
                     <strong>{note.title || 'Untitled'}</strong>
                   </div>
                   <p>{preview || 'No content yet'}</p>
+                  <div className="note-meta-chips">
+                    {note.metadata?.genre && <b>{note.metadata.genre}</b>}
+                    {note.metadata?.bpm && <b>{note.metadata.bpm} BPM</b>}
+                    {note.metadata?.key && <b>{note.metadata.key}</b>}
+                    {note.metadata?.section && <b>{note.metadata.section}</b>}
+                  </div>
                   <span>{formatDate(note.updated_at)}</span>
                 </div>
                 <div className="note-row-actions" onClick={(event) => event.stopPropagation()}>

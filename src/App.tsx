@@ -5,6 +5,7 @@ import NoteEditor from './components/NoteEditor';
 import NoteList from './components/NoteList';
 import { supabase } from './lib/supabase';
 import { AudioFile, Folder, Note, SaveStatus } from './types/note';
+import { defaultMetadataForType, defaultTitleForType, MusicMetadata, NoteType, templateContentForType } from './lib/musicTemplates';
 
 type FolderFilter = 'all' | 'unfiled' | string;
 
@@ -12,14 +13,16 @@ const AUDIO_BUCKET = 'note-audio';
 const SIGNED_URL_EXPIRES_IN = 60 * 60 * 24;
 const DEFAULT_FOLDER_COLOR = '#f4f0e8';
 
-function createLocalNote(userId: string, folderId: string | null): Note {
+function createLocalNote(userId: string, folderId: string | null, noteType: NoteType = 'general'): Note {
   const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
     user_id: userId,
     folder_id: folderId,
-    title: 'Untitled',
-    content: '',
+    note_type: noteType,
+    metadata: defaultMetadataForType(noteType),
+    title: defaultTitleForType(noteType),
+    content: templateContentForType(noteType),
     is_pinned: false,
     is_archived: false,
     deleted_at: null,
@@ -104,6 +107,7 @@ export default function App() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<FolderFilter>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | NoteType>('all');
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [audioUploadStatus, setAudioUploadStatus] = useState('');
@@ -125,16 +129,18 @@ export default function App() {
 
     return notes
       .filter((note) => {
+        if (typeFilter !== 'all' && note.note_type !== typeFilter) return false;
         if (selectedFolderId === 'unfiled' && note.folder_id !== null) return false;
         if (selectedFolderScope && (!note.folder_id || !selectedFolderScope.has(note.folder_id))) return false;
         if (!keyword) return true;
-        return `${note.title} ${stripHtml(note.content)}`.toLowerCase().includes(keyword);
+        const metadataText = Object.values(note.metadata ?? {}).join(' ');
+        return `${note.title} ${stripHtml(note.content)} ${metadataText} ${note.note_type}`.toLowerCase().includes(keyword);
       })
       .sort((a, b) => {
         if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
         return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       });
-  }, [notes, selectedFolderId, selectedFolderScope, searchTerm]);
+  }, [notes, selectedFolderId, selectedFolderScope, searchTerm, typeFilter]);
 
   const selectedNoteAudioFiles = useMemo(() => {
     if (!selectedNoteId) return [];
@@ -196,7 +202,11 @@ export default function App() {
       return;
     }
 
-    const nextNotes = data ?? [];
+    const nextNotes = (data ?? []).map((note) => ({
+      ...note,
+      note_type: note.note_type ?? 'general',
+      metadata: note.metadata ?? {}
+    })) as Note[];
     setNotes(nextNotes);
 
     if (!selectedNoteId && nextNotes.length > 0) {
@@ -322,12 +332,12 @@ export default function App() {
     }
   }
 
-  async function handleCreateNote() {
+  async function handleCreateNote(noteType: NoteType = 'general') {
     if (!session?.user.id) return;
 
     setErrorMessage('');
     const folderId = selectedFolderId !== 'all' && selectedFolderId !== 'unfiled' ? selectedFolderId : null;
-    const optimisticNote = createLocalNote(session.user.id, folderId);
+    const optimisticNote = createLocalNote(session.user.id, folderId, noteType);
     setNotes((prev) => [optimisticNote, ...prev]);
     setSelectedNoteId(optimisticNote.id);
     setMobileView('editor');
@@ -337,6 +347,8 @@ export default function App() {
       .insert({
         user_id: session.user.id,
         folder_id: optimisticNote.folder_id,
+        note_type: optimisticNote.note_type,
+        metadata: optimisticNote.metadata,
         title: optimisticNote.title,
         content: optimisticNote.content
       })
@@ -368,6 +380,32 @@ export default function App() {
     const { error } = await supabase
       .from('notes')
       .update({ ...values, updated_at: now })
+      .eq('id', noteId);
+
+    if (error) {
+      setSaveStatus('error');
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setSaveStatus('saved');
+    window.setTimeout(() => setSaveStatus('idle'), 1200);
+  }, []);
+
+  const handleUpdateNoteMeta = useCallback(async (noteId: string, metadata: MusicMetadata) => {
+    setSaveStatus('saving');
+    setErrorMessage('');
+    const now = new Date().toISOString();
+
+    setNotes((prev) =>
+      prev.map((note) =>
+        note.id === noteId ? { ...note, metadata, updated_at: now } : note
+      )
+    );
+
+    const { error } = await supabase
+      .from('notes')
+      .update({ metadata, updated_at: now })
       .eq('id', noteId);
 
     if (error) {
@@ -562,6 +600,8 @@ export default function App() {
         onChangeNoteFolder={handleChangeNoteFolder}
         onDeleteNote={handleDeleteNote}
         searchFocusSignal={searchFocusSignal}
+        typeFilter={typeFilter}
+        onTypeFilterChange={setTypeFilter}
       />
 
       <main className="main-panel">
@@ -584,6 +624,7 @@ export default function App() {
           saveStatus={saveStatus}
           audioUploadStatus={audioUploadStatus}
           onUpdateNote={handleUpdateNote}
+          onUpdateNoteMeta={handleUpdateNoteMeta}
           onChangeNoteFolder={handleChangeNoteFolder}
           onUploadAudio={handleUploadAudio}
           onDeleteAudio={handleDeleteAudio}
@@ -602,7 +643,7 @@ export default function App() {
           <span>✎</span>
           <em>메모</em>
         </button>
-        <button type="button" className="center-action" onClick={handleCreateNote}>
+        <button type="button" className="center-action" onClick={() => handleCreateNote()}>
           +
         </button>
         <button type="button" onClick={() => {
