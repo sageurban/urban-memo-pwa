@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AudioFile, AudioMarker, Note } from '../types/note';
 import { AdvancedFilters, getNoteTypeOption, NOTE_TYPE_OPTIONS, NoteType, splitTags } from '../lib/musicTemplates';
-import { CHORD_KEY_OPTIONS, makeChordNoteHtml, progressionToBars, transposeChordProgression } from '../lib/chordTranspose';
 
 type TypeFilter = 'all' | NoteType;
 
@@ -10,13 +9,7 @@ type MusicDashboardProps = {
   audioFiles: AudioFile[];
   audioMarkers: AudioMarker[];
   onApplyFilters: (filters: Partial<AdvancedFilters>, typeFilter?: TypeFilter) => void;
-  onSaveTransposedChordNote: (payload: {
-    originalKey: string;
-    targetKey: string;
-    originalProgression: string;
-    transposedProgression: string;
-    content: string;
-  }) => void;
+  onOpenChordTool: (progression?: string) => void;
 };
 
 type CountItem = {
@@ -95,13 +88,9 @@ export default function MusicDashboard({
   audioFiles,
   audioMarkers,
   onApplyFilters,
-  onSaveTransposedChordNote
+  onOpenChordTool
 }: MusicDashboardProps) {
   const [isOpen, setIsOpen] = useState(true);
-  const [originalKey, setOriginalKey] = useState('B Major');
-  const [targetKey, setTargetKey] = useState('D Major');
-  const [progression, setProgression] = useState('Bmaj9 - F#/A# - G#m7 - Emaj9');
-  const [copyStatus, setCopyStatus] = useState('');
 
   const stats = useMemo(() => {
     const typeCounts = NOTE_TYPE_OPTIONS.map((option) => ({
@@ -147,30 +136,6 @@ export default function MusicDashboard({
       audioCount: audioFiles.length
     };
   }, [notes, audioFiles, audioMarkers]);
-
-  const transposedProgression = useMemo(() => {
-    return transposeChordProgression(progression, originalKey, targetKey);
-  }, [progression, originalKey, targetKey]);
-
-  async function copyTransposedProgression() {
-    try {
-      await navigator.clipboard.writeText(transposedProgression);
-      setCopyStatus('Copied');
-    } catch {
-      setCopyStatus('Copy failed');
-    }
-    window.setTimeout(() => setCopyStatus(''), 1400);
-  }
-
-  function saveTransposedProgression() {
-    onSaveTransposedChordNote({
-      originalKey,
-      targetKey,
-      originalProgression: progression,
-      transposedProgression,
-      content: makeChordNoteHtml(originalKey, targetKey, progression, transposedProgression)
-    });
-  }
 
   return (
     <section className="music-dashboard">
@@ -318,55 +283,12 @@ export default function MusicDashboard({
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => setProgression(item.label)}
+                    onClick={() => onOpenChordTool(item.label)}
                   >
                     <span>{item.label}</span>
                     <em>{item.count}</em>
                   </button>
                 ))}
-              </div>
-            </div>
-
-            <div className="dashboard-card dashboard-card-wide chord-tool-card">
-              <header>
-                <strong>Chord Transpose Tool</strong>
-                <span>Slash chord와 tension 코드를 포함해 조옮김</span>
-              </header>
-
-              <div className="transpose-grid">
-                <label>
-                  Original Key
-                  <select value={originalKey} onChange={(event) => setOriginalKey(event.target.value)}>
-                    {CHORD_KEY_OPTIONS.map((key) => <option key={key} value={key}>{key}</option>)}
-                  </select>
-                </label>
-                <label>
-                  Target Key
-                  <select value={targetKey} onChange={(event) => setTargetKey(event.target.value)}>
-                    {CHORD_KEY_OPTIONS.map((key) => <option key={key} value={key}>{key}</option>)}
-                  </select>
-                </label>
-              </div>
-
-              <label className="transpose-textarea-label">
-                Chord Progression
-                <textarea
-                  value={progression}
-                  onChange={(event) => setProgression(event.target.value)}
-                  placeholder="Bmaj9 - F#/A# - G#m7 - Emaj9"
-                />
-              </label>
-
-              <div className="transpose-result">
-                <span>Result</span>
-                <strong>{transposedProgression || 'Enter progression'}</strong>
-                <small>{progressionToBars(transposedProgression).join(' | ')}</small>
-              </div>
-
-              <div className="transpose-actions">
-                <button type="button" onClick={copyTransposedProgression}>Copy Result</button>
-                <button type="button" onClick={saveTransposedProgression}>Save as Chord Note</button>
-                {copyStatus && <span>{copyStatus}</span>}
               </div>
             </div>
           </div>

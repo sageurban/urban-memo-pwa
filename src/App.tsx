@@ -4,6 +4,7 @@ import Auth from './components/Auth';
 import NoteEditor from './components/NoteEditor';
 import NoteList from './components/NoteList';
 import MusicDashboard from './components/MusicDashboard';
+import ChordTransposeWidget from './components/ChordTransposeWidget';
 import { supabase } from './lib/supabase';
 import { AudioFile, AudioMarker, Folder, Note, SaveStatus } from './types/note';
 import { AdvancedFilters, defaultMetadataForTypes, defaultTitleForTypes, EMPTY_ADVANCED_FILTERS, MusicMetadata, normalizeTemplateTypes, NoteType, splitTags, templateContentForTypes } from './lib/musicTemplates';
@@ -152,6 +153,8 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [mobileView, setMobileView] = useState<'folders' | 'editor'>('folders');
   const [searchFocusSignal, setSearchFocusSignal] = useState(0);
+  const [chordToolSeed, setChordToolSeed] = useState('');
+  const [chordToolOpenSignal, setChordToolOpenSignal] = useState(0);
 
   const selectedNote = useMemo(() => {
     return notes.find((note) => note.id === selectedNoteId) ?? null;
@@ -896,7 +899,10 @@ export default function App() {
             setTypeFilter(nextTypeFilter);
             setMobileView('folders');
           }}
-          onSaveTransposedChordNote={handleSaveTransposedChordNote}
+          onOpenChordTool={(progression) => {
+            if (progression) setChordToolSeed(progression);
+            setChordToolOpenSignal((value) => value + 1);
+          }}
         />
 
         <NoteEditor
@@ -919,6 +925,12 @@ export default function App() {
           onBackToList={() => setMobileView('folders')}
         />
       </main>
+
+      <ChordTransposeWidget
+        seedProgression={chordToolSeed}
+        openSignal={chordToolOpenSignal}
+        onSaveTransposedChordNote={handleSaveTransposedChordNote}
+      />
 
       <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
         <button type="button" className={mobileView === 'folders' ? 'active' : ''} onClick={() => setMobileView('folders')}>
