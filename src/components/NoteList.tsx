@@ -43,6 +43,8 @@ type FolderNode = Folder & { children: FolderNode[]; depth: number };
 type FolderOption = Folder & { depth: number };
 
 const COLLAPSED_STORAGE_KEY = 'urban-memo-collapsed-folders';
+const PINNED_FOLDERS_STORAGE_KEY = 'urban-memo-pinned-folders';
+const NOTE_VIEW_MODE_STORAGE_KEY = 'urban-memo-note-view-mode';
 const DEFAULT_FOLDER_COLOR = '#f4f0e8';
 
 function formatDate(value: string) {
@@ -133,6 +135,35 @@ function saveCollapsedFolders(ids: Set<string>) {
   window.localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...ids]));
 }
 
+function loadPinnedFolders() {
+  try {
+    const raw = window.localStorage.getItem(PINNED_FOLDERS_STORAGE_KEY);
+    if (!raw) return new Set<string>();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set<string>();
+    return new Set(parsed.filter((item) => typeof item === 'string'));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function savePinnedFolders(ids: Set<string>) {
+  window.localStorage.setItem(PINNED_FOLDERS_STORAGE_KEY, JSON.stringify([...ids]));
+}
+
+function loadNoteViewMode(): 'compact' | 'detail' {
+  try {
+    const value = window.localStorage.getItem(NOTE_VIEW_MODE_STORAGE_KEY);
+    return value === 'compact' ? 'compact' : 'detail';
+  } catch {
+    return 'detail';
+  }
+}
+
+function saveNoteViewMode(value: 'compact' | 'detail') {
+  window.localStorage.setItem(NOTE_VIEW_MODE_STORAGE_KEY, value);
+}
+
 export default function NoteList({
   notes,
   allNotes,
@@ -167,6 +198,8 @@ export default function NoteList({
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<NoteType[]>(['song_analysis']);
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => loadCollapsedFolders());
+  const [pinnedFolderIds, setPinnedFolderIds] = useState<Set<string>>(() => loadPinnedFolders());
+  const [noteViewMode, setNoteViewMode] = useState<'compact' | 'detail'>(() => loadNoteViewMode());
   const [openFolderMenuId, setOpenFolderMenuId] = useState<string | null>(null);
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
   const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
@@ -183,6 +216,12 @@ export default function NoteList({
       const validIds = new Set(folders.map((folder) => folder.id));
       const next = new Set([...prev].filter((id) => validIds.has(id)));
       if (next.size !== prev.size) saveCollapsedFolders(next);
+      return next;
+    });
+    setPinnedFolderIds((prev) => {
+      const validIds = new Set(folders.map((folder) => folder.id));
+      const next = new Set([...prev].filter((id) => validIds.has(id)));
+      if (next.size !== prev.size) savePinnedFolders(next);
       return next;
     });
   }, [folders]);
@@ -215,6 +254,45 @@ export default function NoteList({
     counts.unfiled = allNotes.filter((note) => note.folder_id === null).length;
     return counts;
   }, [allNotes, folders]);
+
+
+  const pinnedFolders = useMemo(() => {
+    return folders
+      .filter((folder) => pinnedFolderIds.has(folder.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [folders, pinnedFolderIds]);
+
+  const selectedFolderName = useMemo(() => {
+    if (selectedFolderId === 'all') return 'All Notes';
+    if (selectedFolderId === 'unfiled') return 'Unfiled';
+    return folders.find((folder) => folder.id === selectedFolderId)?.name ?? 'Folder';
+  }, [folders, selectedFolderId]);
+
+  const activeFilterLabels = useMemo(() => {
+    const labels: string[] = [];
+    if (typeFilter !== 'all') labels.push(getNoteTypeOption(typeFilter).shortLabel);
+    if (advancedFilters.genre) labels.push(advancedFilters.genre);
+    if (advancedFilters.mood) labels.push(advancedFilters.mood);
+    if (advancedFilters.section) labels.push(advancedFilters.section);
+    if (advancedFilters.key) labels.push(advancedFilters.key);
+    if (advancedFilters.bpmMin || advancedFilters.bpmMax) labels.push(`BPM ${advancedFilters.bpmMin || '0'}-${advancedFilters.bpmMax || '+'}`);
+    if (advancedFilters.tag) labels.push(`#${advancedFilters.tag.replace(/^#/, '')}`);
+    return labels;
+  }, [typeFilter, advancedFilters]);
+
+  function togglePinnedFolder(folder: Folder) {
+    const next = new Set(pinnedFolderIds);
+    if (next.has(folder.id)) next.delete(folder.id);
+    else next.add(folder.id);
+    setPinnedFolderIds(next);
+    savePinnedFolders(next);
+    setOpenFolderMenuId(null);
+  }
+
+  function updateNoteViewMode(value: 'compact' | 'detail') {
+    setNoteViewMode(value);
+    saveNoteViewMode(value);
+  }
 
   function handleCreateFolder(event: FormEvent) {
     event.preventDefault();
@@ -420,6 +498,7 @@ export default function NoteList({
 
             {menuOpen && !isEditing && !isMoving && (
               <div className="folder-menu-panel">
+                <button type="button" onClick={() => togglePinnedFolder(node)}>{pinnedFolderIds.has(node.id) ? '고정 해제' : '상단 고정'}</button>
                 <button type="button" onClick={() => startRenameFolder(node)}>이름 변경</button>
                 <button
                   type="button"
@@ -474,78 +553,62 @@ export default function NoteList({
   }
 
   return (
-    <aside className="sidebar sidebar-redesign">
-      <header className="sidebar-header folder-page-header">
+    <aside className="sidebar sidebar-redesign left-desk-v54">
+      <header className="left-desk-brand">
         <div>
-          <div className="folder-page-title-row">
-            <h1>폴더</h1>
-            <span className="header-count-pill">{folders.length}</span>
-          </div>
-          <p>폴더를 정리하고 메모를 계층별로 관리하세요.</p>
+          <strong>Urban Music Library</strong>
+          <span>Folder-first analysis desk</span>
         </div>
-        <div className="header-actions">
-          <button type="button" className="header-icon-button" title="메모 검색" onClick={focusSearchInput}>
-            ⌕
-          </button>
-          <button
-            type="button"
-            className="header-icon-button primary"
-            title="새 폴더 추가"
-            onClick={() => setShowCreateFolder((current) => !current)}
-          >
-            +
-          </button>
-        </div>
+        <button
+          type="button"
+          className="header-icon-button primary"
+          title="새 폴더 추가"
+          onClick={() => setShowCreateFolder((current) => !current)}
+        >
+          +
+        </button>
       </header>
 
-      <div className="folder-tip-banner">
-        <span>✦ 타입별 템플릿으로 분석 데이터를 통일하고, 검색/필터로 작곡 재료를 빠르게 찾을 수 있어요.</span>
-      </div>
-
-      {recentWork.length > 0 && (
-        <section className="recent-work-panel" aria-label="Recent work">
-          <div className="recent-work-head">
-            <strong>Recent Work</strong>
-            <span>{recentWork.length}</span>
-          </div>
-          <div className="recent-work-list">
-            {recentWork.slice(0, 5).map((item) => {
-              const option = getNoteTypeOption(item.note_type);
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onSelectRecentWork?.(item.id)}
-                  style={{ '--note-type-color': option.color } as CSSProperties}
-                >
-                  <i />
-                  <span>
-                    <strong>{item.title || 'Untitled'}</strong>
-                    <em>{option.shortLabel} · {item.folderName}</em>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      <section className="folder-panel folder-panel-redesign" aria-label="Folders">
+      <section className="folder-panel folder-panel-redesign folder-explorer-priority" aria-label="Folder Explorer">
         <div className="folder-panel-header folder-panel-header-redesign">
           <div>
-            <strong>Folders</strong>
+            <strong>Folder Explorer</strong>
             <span>{folders.length}</span>
           </div>
           <div className="folder-tree-controls">
-            <button type="button" onClick={collapseAllFolders} disabled={folders.length === 0}>전체 접기</button>
-            <button type="button" onClick={expandAllFolders} disabled={folders.length === 0}>전체 열기</button>
+            <button type="button" onClick={collapseAllFolders} disabled={folders.length === 0}>접기</button>
+            <button type="button" onClick={expandAllFolders} disabled={folders.length === 0}>열기</button>
           </div>
         </div>
 
-        <div className="folder-tree folder-tree-redesign">
-          {renderSystemFolder('all', 'All Notes', allNotes.length, '#ff5c5c')}
-          {renderSystemFolder('unfiled', 'Unfiled', noteCountByFolder.unfiled ?? 0, '#bcbcbc')}
-          {folderTree.map(renderFolderNode)}
+        <div className="folder-tree folder-tree-redesign folder-tree-scroll-area">
+          {pinnedFolders.length > 0 && (
+            <div className="pinned-folder-block">
+              <div className="left-section-label">Pinned</div>
+              {pinnedFolders.map((folder) => (
+                <button
+                  key={folder.id}
+                  type="button"
+                  className={`pinned-folder-row ${selectedFolderId === folder.id ? 'active' : ''}`}
+                  onClick={() => onSelectFolder(folder.id)}
+                >
+                  <span className="folder-color-dot" style={{ background: folder.color || DEFAULT_FOLDER_COLOR }} />
+                  <strong>{folder.name}</strong>
+                  <em>{noteCountByFolder[folder.id] ?? 0}</em>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="system-folder-block">
+            {renderSystemFolder('all', 'All Notes', allNotes.length, '#7c5cff')}
+            {renderSystemFolder('unfiled', 'Unfiled', noteCountByFolder.unfiled ?? 0, '#9aa3b5')}
+          </div>
+
+          <div className="all-folder-block">
+            <div className="left-section-label">All Folders</div>
+            {folderTree.map(renderFolderNode)}
+          </div>
         </div>
 
         <button
@@ -613,154 +676,62 @@ export default function NoteList({
         )}
       </section>
 
-      <input
-        ref={searchInputRef}
-        className="search-input search-input-redesign"
-        value={searchTerm}
-        onChange={(event) => onSearchTermChange(event.target.value)}
-        placeholder="메모 검색"
-      />
-
-      <div className="type-filter-bar" aria-label="Note type filters">
-        <button type="button" className={typeFilter === 'all' ? 'active' : ''} onClick={() => onTypeFilterChange('all')}>All</button>
-        {NOTE_TYPE_OPTIONS.filter((option) => option.id !== 'general').map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            className={typeFilter === option.id ? 'active' : ''}
-            onClick={() => onTypeFilterChange(option.id)}
-            style={{ borderColor: typeFilter === option.id ? option.color : undefined }}
-          >
-            {option.shortLabel}
-          </button>
-        ))}
-      </div>
-
-      <section className="advanced-filter-card">
-        <button
-          type="button"
-          className="advanced-filter-toggle"
-          onClick={() => setShowAdvancedFilters((current) => !current)}
-        >
-          <span>고급 필터</span>
-          <em>{activeAdvancedFilterCount > 0 ? `${activeAdvancedFilterCount} active` : 'Genre · BPM · Key · Tag'}</em>
-          <b>{showAdvancedFilters ? '▴' : '▾'}</b>
-        </button>
-
-        {activeAdvancedFilterCount > 0 && (
-          <div className="active-filter-chip-row">
-            {advancedFilters.genre && <button type="button" onClick={() => updateAdvancedFilter('genre', '')}>Genre: {advancedFilters.genre} ×</button>}
-            {advancedFilters.mood && <button type="button" onClick={() => updateAdvancedFilter('mood', '')}>Mood: {advancedFilters.mood} ×</button>}
-            {advancedFilters.section && <button type="button" onClick={() => updateAdvancedFilter('section', '')}>Section: {advancedFilters.section} ×</button>}
-            {advancedFilters.key && <button type="button" onClick={() => updateAdvancedFilter('key', '')}>Key: {advancedFilters.key} ×</button>}
-            {advancedFilters.harmony && <button type="button" onClick={() => updateAdvancedFilter('harmony', '')}>Harmony: {advancedFilters.harmony} ×</button>}
-            {advancedFilters.instrument && <button type="button" onClick={() => updateAdvancedFilter('instrument', '')}>Inst: {advancedFilters.instrument} ×</button>}
-            {advancedFilters.confidence && <button type="button" onClick={() => updateAdvancedFilter('confidence', '')}>Confidence: {advancedFilters.confidence} ×</button>}
-            {advancedFilters.tag && <button type="button" onClick={() => updateAdvancedFilter('tag', '')}>Tag: #{advancedFilters.tag.replace(/^#/, '')} ×</button>}
-            {(advancedFilters.bpmMin || advancedFilters.bpmMax) && <button type="button" onClick={() => onAdvancedFiltersChange({ ...advancedFilters, bpmMin: '', bpmMax: '' })}>BPM: {advancedFilters.bpmMin || '0'}-{advancedFilters.bpmMax || '+'} ×</button>}
+      <section className="left-desk-sticky-tools">
+        <div className="quick-create-card-v54">
+          <div className="left-section-header-row">
+            <strong>Quick Create</strong>
+            <button type="button" onClick={() => setShowTemplatePicker((current) => !current)}>Custom</button>
           </div>
-        )}
-
-        {showAdvancedFilters && (
-          <div className="advanced-filter-panel">
-            <div className="filter-field">
-              <label>Genre</label>
-              <input list="genre-presets" value={advancedFilters.genre} onChange={(event) => updateAdvancedFilter('genre', event.target.value)} placeholder="K-pop" />
-              <datalist id="genre-presets">{GENRE_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
-            </div>
-            <div className="filter-field">
-              <label>Mood</label>
-              <input list="mood-presets" value={advancedFilters.mood} onChange={(event) => updateAdvancedFilter('mood', event.target.value)} placeholder="청량" />
-              <datalist id="mood-presets">{MOOD_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
-            </div>
-            <div className="filter-field">
-              <label>Section</label>
-              <input list="section-presets" value={advancedFilters.section} onChange={(event) => updateAdvancedFilter('section', event.target.value)} placeholder="Chorus" />
-              <datalist id="section-presets">{SECTION_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
-            </div>
-            <div className="filter-field">
-              <label>Key</label>
-              <input list="key-presets" value={advancedFilters.key} onChange={(event) => updateAdvancedFilter('key', event.target.value)} placeholder="B Major" />
-              <datalist id="key-presets">{KEY_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
-            </div>
-            <div className="filter-field">
-              <label>Harmony</label>
-              <input list="harmony-presets" value={advancedFilters.harmony} onChange={(event) => updateAdvancedFilter('harmony', event.target.value)} placeholder="Modal Interchange" />
-              <datalist id="harmony-presets">{HARMONY_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
-            </div>
-            <div className="filter-field">
-              <label>Instrument</label>
-              <input list="instrument-presets" value={advancedFilters.instrument} onChange={(event) => updateAdvancedFilter('instrument', event.target.value)} placeholder="EP Pluck" />
-              <datalist id="instrument-presets">{INSTRUMENT_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
-            </div>
-            <div className="filter-field">
-              <label>Confidence</label>
-              <select value={advancedFilters.confidence} onChange={(event) => updateAdvancedFilter('confidence', event.target.value as AdvancedFilters['confidence'])}>
-                <option value="">Any</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
-            </div>
-            <div className="filter-field">
-              <label>Tag</label>
-              <input value={advancedFilters.tag} onChange={(event) => updateAdvancedFilter('tag', event.target.value)} placeholder="NCTWISH / 청량" />
-            </div>
-
-            <div className="filter-field bpm-filter-field">
-              <label>BPM Range</label>
-              <div className="bpm-range-inputs">
-                <input value={advancedFilters.bpmMin} onChange={(event) => updateAdvancedFilter('bpmMin', event.target.value)} inputMode="numeric" placeholder="Min" />
-                <span>—</span>
-                <input value={advancedFilters.bpmMax} onChange={(event) => updateAdvancedFilter('bpmMax', event.target.value)} inputMode="numeric" placeholder="Max" />
-              </div>
-              <div className="bpm-preset-row">
-                {BPM_PRESETS.map((preset) => (
-                  <button key={preset.label} type="button" onClick={() => applyBpmPreset(preset.min, preset.max)}>
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="preset-filter-row">
-              {[...GENRE_PRESETS.slice(0, 4), ...HARMONY_PRESETS.slice(1, 4)].map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => toggleAdvancedPreset(GENRE_PRESETS.includes(item) ? 'genre' : 'harmony', item)}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-
-            <button type="button" className="clear-filter-button" onClick={onClearAdvancedFilters} disabled={activeAdvancedFilterCount === 0}>
-              필터 초기화
-            </button>
+          <div className="quick-create-icons-v54">
+            <button type="button" className="type-song" onClick={() => onCreateNote('song_analysis')}>♪<span>Song</span></button>
+            <button type="button" className="type-chord" onClick={() => onCreateNote('chord_progression')}>▦<span>Chord</span></button>
+            <button type="button" className="type-rhythm" onClick={() => onCreateNote('rhythm_pattern')}>≋<span>Rhythm</span></button>
+            <button type="button" className="type-demo" onClick={() => onCreateNote('demo_idea')}>✎<span>Demo</span></button>
+            <button type="button" className="type-custom" onClick={() => setShowTemplatePicker((current) => !current)}>＋<span>Mix</span></button>
           </div>
-        )}
+        </div>
+
+        <div className="search-and-filter-sticky">
+          <label className="left-search-shell">
+            <span>⌕</span>
+            <input
+              ref={searchInputRef}
+              className="search-input search-input-redesign"
+              value={searchTerm}
+              onChange={(event) => onSearchTermChange(event.target.value)}
+              placeholder="메모 검색"
+            />
+            <em>⌘K</em>
+          </label>
+
+          <div className="active-filter-summary-v54">
+            <div className="left-section-header-row compact">
+              <strong>Active Filters</strong>
+              <button type="button" onClick={onClearAdvancedFilters} disabled={activeFilterLabels.length === 0 && typeFilter === 'all'}>Clear</button>
+            </div>
+            {activeFilterLabels.length > 0 ? (
+              <div className="active-filter-chip-row compact-active-filters">
+                {typeFilter !== 'all' && <button type="button" onClick={() => onTypeFilterChange('all')}>{getNoteTypeOption(typeFilter).shortLabel} ×</button>}
+                {advancedFilters.genre && <button type="button" onClick={() => updateAdvancedFilter('genre', '')}>{advancedFilters.genre} ×</button>}
+                {advancedFilters.mood && <button type="button" onClick={() => updateAdvancedFilter('mood', '')}>{advancedFilters.mood} ×</button>}
+                {advancedFilters.section && <button type="button" onClick={() => updateAdvancedFilter('section', '')}>{advancedFilters.section} ×</button>}
+                {advancedFilters.key && <button type="button" onClick={() => updateAdvancedFilter('key', '')}>{advancedFilters.key} ×</button>}
+                {(advancedFilters.bpmMin || advancedFilters.bpmMax) && <button type="button" onClick={() => onAdvancedFiltersChange({ ...advancedFilters, bpmMin: '', bpmMax: '' })}>BPM {advancedFilters.bpmMin || '0'}-{advancedFilters.bpmMax || '+'} ×</button>}
+                {advancedFilters.tag && <button type="button" onClick={() => updateAdvancedFilter('tag', '')}>#{advancedFilters.tag.replace(/^#/, '')} ×</button>}
+              </div>
+            ) : (
+              <span className="no-active-filters">No active filters</span>
+            )}
+          </div>
+        </div>
       </section>
 
-      <div className="sidebar-subheader">
-        <strong>메모</strong>
-        <button type="button" className="new-note-button" onClick={() => setShowTemplatePicker((current) => !current)}>새 메모</button>
-      </div>
-
-      <div className="quick-create-row-v52">
-        <button type="button" onClick={() => onCreateNote('song_analysis')}>+ Song Analysis</button>
-        <button type="button" onClick={() => onCreateNote('chord_progression')}>+ Chord Idea</button>
-        <button type="button" onClick={() => onCreateNote('rhythm_pattern')}>+ Rhythm</button>
-        <button type="button" onClick={() => onCreateNote('demo_idea')}>+ Demo Plan</button>
-        <button type="button" className="custom-mix" onClick={() => setShowTemplatePicker((current) => !current)}>Custom Mix</button>
-      </div>
-
       {showTemplatePicker && (
-        <div className="template-picker-card multi-template-picker">
+        <div className="template-picker-card multi-template-picker left-template-picker-v54">
           <div className="template-picker-head">
             <div>
-              <strong>분석 템플릿 선택</strong>
-              <span>하나 또는 여러 템플릿을 선택해서 한 메모에 합칠 수 있어요.</span>
+              <strong>Custom Mix</strong>
+              <span>여러 템플릿을 선택해서 한 메모에 합칠 수 있어요.</span>
             </div>
             <em>{selectedTemplateIds.length} selected</em>
           </div>
@@ -790,91 +761,226 @@ export default function NoteList({
               취소
             </button>
             <button type="button" className="create-button" onClick={createNoteFromSelectedTemplates}>
-              선택한 템플릿으로 메모 만들기
+              메모 만들기
             </button>
           </div>
         </div>
       )}
 
-      <div className="note-list">
-        {notes.length === 0 ? (
-          <div className="empty-state improved-empty-state">
-            <strong>검색 결과가 없습니다.</strong>
-            <span>필터를 줄이거나 새 분석 메모를 만들어보세요.</span>
-            <div className="empty-state-actions">
-              <button type="button" onClick={onClearAdvancedFilters}>필터 초기화</button>
-              <button type="button" onClick={() => onCreateNote('song_analysis')}>Song Analysis 만들기</button>
+      <section className="left-filter-card-v54">
+        <div className="left-section-header-row">
+          <strong>Quick Filters</strong>
+          <button type="button" onClick={() => onTypeFilterChange('all')}>All</button>
+        </div>
+        <div className="type-filter-bar type-filter-grid-v54" aria-label="Note type filters">
+          {NOTE_TYPE_OPTIONS.filter((option) => option.id !== 'general').map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={typeFilter === option.id ? 'active' : ''}
+              onClick={() => onTypeFilterChange(option.id)}
+              style={{ borderColor: typeFilter === option.id ? option.color : undefined }}
+            >
+              {option.shortLabel}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          className="advanced-filter-toggle advanced-filter-toggle-v54"
+          onClick={() => setShowAdvancedFilters((current) => !current)}
+        >
+          <span>Advanced Filters</span>
+          <em>{activeAdvancedFilterCount > 0 ? `${activeAdvancedFilterCount} active` : 'Genre · BPM · Key · Tag'}</em>
+          <b>{showAdvancedFilters ? '▴' : '▾'}</b>
+        </button>
+
+        {showAdvancedFilters && (
+          <div className="advanced-filter-panel advanced-filter-panel-v54">
+            <div className="filter-field">
+              <label>Genre</label>
+              <input list="genre-presets" value={advancedFilters.genre} onChange={(event) => updateAdvancedFilter('genre', event.target.value)} placeholder="K-pop" />
+              <datalist id="genre-presets">{GENRE_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
             </div>
+            <div className="filter-field">
+              <label>Mood</label>
+              <input list="mood-presets" value={advancedFilters.mood} onChange={(event) => updateAdvancedFilter('mood', event.target.value)} placeholder="청량" />
+              <datalist id="mood-presets">{MOOD_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            </div>
+            <div className="filter-field">
+              <label>Section</label>
+              <input list="section-presets" value={advancedFilters.section} onChange={(event) => updateAdvancedFilter('section', event.target.value)} placeholder="Chorus" />
+              <datalist id="section-presets">{SECTION_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            </div>
+            <div className="filter-field">
+              <label>Key</label>
+              <input list="key-presets" value={advancedFilters.key} onChange={(event) => updateAdvancedFilter('key', event.target.value)} placeholder="B Major" />
+              <datalist id="key-presets">{KEY_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            </div>
+            <div className="filter-field">
+              <label>Instrument</label>
+              <input list="instrument-presets" value={advancedFilters.instrument} onChange={(event) => updateAdvancedFilter('instrument', event.target.value)} placeholder="EP Pluck" />
+              <datalist id="instrument-presets">{INSTRUMENT_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            </div>
+            <div className="filter-field">
+              <label>Confidence</label>
+              <select value={advancedFilters.confidence} onChange={(event) => updateAdvancedFilter('confidence', event.target.value as AdvancedFilters['confidence'])}>
+                <option value="">Any</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <div className="filter-field">
+              <label>Tag</label>
+              <input value={advancedFilters.tag} onChange={(event) => updateAdvancedFilter('tag', event.target.value)} placeholder="NCTWISH / 청량" />
+            </div>
+            <div className="filter-field bpm-filter-field">
+              <label>BPM Range</label>
+              <div className="bpm-range-inputs">
+                <input value={advancedFilters.bpmMin} onChange={(event) => updateAdvancedFilter('bpmMin', event.target.value)} inputMode="numeric" placeholder="Min" />
+                <span>—</span>
+                <input value={advancedFilters.bpmMax} onChange={(event) => updateAdvancedFilter('bpmMax', event.target.value)} inputMode="numeric" placeholder="Max" />
+              </div>
+              <div className="bpm-preset-row">
+                {BPM_PRESETS.map((preset) => (
+                  <button key={preset.label} type="button" onClick={() => applyBpmPreset(preset.min, preset.max)}>
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button type="button" className="clear-filter-button" onClick={onClearAdvancedFilters} disabled={activeAdvancedFilterCount === 0}>
+              필터 초기화
+            </button>
           </div>
-        ) : (
-          notes.map((note) => {
-            const preview = stripHtml(note.content);
-            const primaryMetaChips = [note.metadata?.genre, note.metadata?.bpm ? `${note.metadata.bpm} BPM` : '', note.metadata?.key, note.metadata?.section].filter(Boolean);
-            const secondaryMetaChips = [note.metadata?.mood, note.metadata?.harmony, note.metadata?.confidence].filter(Boolean);
-            const visibleMetaChips = [...primaryMetaChips, ...secondaryMetaChips].slice(0, 5);
-            const hiddenMetaCount = Math.max(0, primaryMetaChips.length + secondaryMetaChips.length - visibleMetaChips.length);
-            const noteTags = splitTags(note.metadata?.tags);
-            const visibleTags = noteTags.slice(0, 2);
-            const hiddenTagCount = Math.max(0, noteTags.length - visibleTags.length);
-            return (
-              <article
-                key={note.id}
-                className={`note-row note-row-colored ${selectedNoteId === note.id ? 'selected' : ''}`}
-                style={{ '--note-type-color': getNoteTypeOption(note.note_type).color } as CSSProperties}
-                onClick={() => onSelectNote(note)}
-              >
-                <div className="note-row-main">
-                  <div className="note-row-title">
-                    {note.is_pinned && <span className="pin-badge">Pinned</span>}
-                    <span className="note-type-badge" style={{ borderColor: getNoteTypeOption(note.note_type).color, color: getNoteTypeOption(note.note_type).color }}>
-                      {getNoteTypeOption(note.note_type).shortLabel}
-                    </span>
-                    <strong>{note.title || 'Untitled'}</strong>
+        )}
+      </section>
+
+      {recentWork.length > 0 && (
+        <section className="recent-work-panel recent-work-panel-v54" aria-label="Recent work">
+          <div className="recent-work-head">
+            <strong>Recent Work</strong>
+            <span>최근 3개</span>
+          </div>
+          <div className="recent-work-list compact-recent-list">
+            {recentWork.slice(0, 3).map((item) => {
+              const option = getNoteTypeOption(item.note_type);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onSelectRecentWork?.(item.id)}
+                  style={{ '--note-type-color': option.color } as CSSProperties}
+                >
+                  <i />
+                  <span>
+                    <strong>{item.title || 'Untitled'}</strong>
+                    <em>{option.shortLabel} · {item.folderName}</em>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="notes-desk-v54">
+        <div className="viewing-status-card-v54">
+          <div>
+            <span>Viewing</span>
+            <strong>{selectedFolderName}{activeFilterLabels.length ? ` / ${activeFilterLabels.slice(0, 2).join(' / ')}` : ''}</strong>
+            <em>{notes.length} notes</em>
+          </div>
+          <button type="button" onClick={focusSearchInput}>⌕</button>
+        </div>
+
+        <div className="notes-toolbar-v54">
+          <strong>Notes</strong>
+          <div className="note-view-toggle-v54">
+            <button type="button" className={noteViewMode === 'compact' ? 'active' : ''} onClick={() => updateNoteViewMode('compact')}>Compact</button>
+            <button type="button" className={noteViewMode === 'detail' ? 'active' : ''} onClick={() => updateNoteViewMode('detail')}>Detail</button>
+          </div>
+        </div>
+
+        <div className={`note-list note-list-v54 ${noteViewMode === 'compact' ? 'compact-note-list' : 'detail-note-list'}`}>
+          {notes.length === 0 ? (
+            <div className="empty-state improved-empty-state">
+              <strong>검색 결과가 없습니다.</strong>
+              <span>필터를 줄이거나 새 분석 메모를 만들어보세요.</span>
+              <div className="empty-state-actions">
+                <button type="button" onClick={onClearAdvancedFilters}>필터 초기화</button>
+                <button type="button" onClick={() => onCreateNote('song_analysis')}>Song Analysis 만들기</button>
+              </div>
+            </div>
+          ) : (
+            notes.map((note) => {
+              const preview = stripHtml(note.content);
+              const primaryMetaChips = [note.metadata?.bpm ? `${note.metadata.bpm} BPM` : '', note.metadata?.key, note.metadata?.section].filter(Boolean);
+              const noteTags = splitTags(note.metadata?.tags);
+              const visibleTags = noteTags.slice(0, 2);
+              const hiddenTagCount = Math.max(0, noteTags.length - visibleTags.length);
+              const typeOption = getNoteTypeOption(note.note_type);
+              return (
+                <article
+                  key={note.id}
+                  className={`note-row note-row-colored note-row-v54 ${selectedNoteId === note.id ? 'selected' : ''}`}
+                  style={{ '--note-type-color': typeOption.color } as CSSProperties}
+                  onClick={() => onSelectNote(note)}
+                >
+                  <div className="note-row-main">
+                    <div className="note-row-title">
+                      {note.is_pinned && <span className="pin-badge">Pinned</span>}
+                      <span className="note-type-badge" style={{ borderColor: typeOption.color, color: typeOption.color }}>
+                        {typeOption.shortLabel}
+                      </span>
+                      <strong>{note.title || 'Untitled'}</strong>
+                    </div>
+                    {noteViewMode === 'detail' && <p>{preview || 'No content yet'}</p>}
+                    <div className="note-meta-chips compact-note-meta">
+                      {primaryMetaChips.slice(0, 3).map((chip) => <b key={String(chip)}>{chip}</b>)}
+                    </div>
+                    {noteTags.length > 0 && (
+                      <div className="note-tag-row compact-note-tags" onClick={(event) => event.stopPropagation()}>
+                        {visibleTags.map((tag) => (
+                          <button key={tag} type="button" onClick={() => updateAdvancedFilter('tag', tag)}>
+                            #{tag.replace(/^#/, '')}
+                          </button>
+                        ))}
+                        {hiddenTagCount > 0 && <button type="button" className="more-tag-chip">+{hiddenTagCount}</button>}
+                      </div>
+                    )}
+                    <span>{formatDate(note.updated_at)}</span>
                   </div>
-                  <p>{preview || 'No content yet'}</p>
-                  <div className="note-meta-chips compact-note-meta">
-                    {visibleMetaChips.map((chip) => <b key={String(chip)}>{chip}</b>)}
-                    {hiddenMetaCount > 0 && <b className="more-chip">+{hiddenMetaCount}</b>}
+                  <div className="note-row-actions" onClick={(event) => event.stopPropagation()}>
+                    <button type="button" onClick={() => onTogglePin(note)}>{note.is_pinned ? 'Unpin' : 'Pin'}</button>
+                    <button type="button" onClick={() => setMovingNoteId((current) => (current === note.id ? null : note.id))}>Move</button>
+                    <button type="button" className="danger" onClick={() => onDeleteNote(note)}>Delete</button>
                   </div>
-                  {noteTags.length > 0 && (
-                    <div className="note-tag-row compact-note-tags" onClick={(event) => event.stopPropagation()}>
-                      {visibleTags.map((tag) => (
-                        <button key={tag} type="button" onClick={() => updateAdvancedFilter('tag', tag)}>
-                          #{tag.replace(/^#/, '')}
-                        </button>
-                      ))}
-                      {hiddenTagCount > 0 && <button type="button" className="more-tag-chip">+{hiddenTagCount}</button>}
+
+                  {movingNoteId === note.id && (
+                    <div className="note-move-panel" onClick={(event) => event.stopPropagation()}>
+                      <label>
+                        Move to
+                        <select value={note.folder_id ?? ''} onChange={(event) => handleMoveNote(note, event.target.value)}>
+                          <option value="">Unfiled</option>
+                          {folderOptions.map((folder) => (
+                            <option key={folder.id} value={folder.id}>
+                              {`${'— '.repeat(folder.depth)}${folder.name}`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="button" onClick={() => setMovingNoteId(null)}>Cancel</button>
                     </div>
                   )}
-                  <span>{formatDate(note.updated_at)}</span>
-                </div>
-                <div className="note-row-actions" onClick={(event) => event.stopPropagation()}>
-                  <button type="button" onClick={() => onTogglePin(note)}>{note.is_pinned ? 'Unpin' : 'Pin'}</button>
-                  <button type="button" onClick={() => setMovingNoteId((current) => (current === note.id ? null : note.id))}>Move</button>
-                  <button type="button" className="danger" onClick={() => onDeleteNote(note)}>Delete</button>
-                </div>
-
-                {movingNoteId === note.id && (
-                  <div className="note-move-panel" onClick={(event) => event.stopPropagation()}>
-                    <label>
-                      Move to
-                      <select value={note.folder_id ?? ''} onChange={(event) => handleMoveNote(note, event.target.value)}>
-                        <option value="">Unfiled</option>
-                        {folderOptions.map((folder) => (
-                          <option key={folder.id} value={folder.id}>
-                            {`${'— '.repeat(folder.depth)}${folder.name}`}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button type="button" onClick={() => setMovingNoteId(null)}>Cancel</button>
-                  </div>
-                )}
-              </article>
-            );
-          })
-        )}
-      </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+      </section>
     </aside>
   );
 }
