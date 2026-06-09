@@ -109,6 +109,7 @@ export default function App() {
   const [audioUploadStatus, setAudioUploadStatus] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [mobileView, setMobileView] = useState<'folders' | 'editor'>('folders');
+  const [searchFocusSignal, setSearchFocusSignal] = useState(0);
 
   const selectedNote = useMemo(() => {
     return notes.find((note) => note.id === selectedNoteId) ?? null;
@@ -560,6 +561,7 @@ export default function App() {
         onTogglePin={handleTogglePin}
         onChangeNoteFolder={handleChangeNoteFolder}
         onDeleteNote={handleDeleteNote}
+        searchFocusSignal={searchFocusSignal}
       />
 
       <main className="main-panel">
@@ -585,6 +587,8 @@ export default function App() {
           onChangeNoteFolder={handleChangeNoteFolder}
           onUploadAudio={handleUploadAudio}
           onDeleteAudio={handleDeleteAudio}
+          onTogglePin={handleTogglePin}
+          onDeleteNote={handleDeleteNote}
           onBackToList={() => setMobileView('folders')}
         />
       </main>
@@ -601,7 +605,10 @@ export default function App() {
         <button type="button" className="center-action" onClick={handleCreateNote}>
           +
         </button>
-        <button type="button" onClick={() => setMobileView('folders')}>
+        <button type="button" onClick={() => {
+          setMobileView('folders');
+          setSearchFocusSignal((value) => value + 1);
+        }}>
           <span>⌕</span>
           <em>검색</em>
         </button>

@@ -20,6 +20,7 @@ type NoteListProps = {
   onTogglePin: (note: Note) => void;
   onChangeNoteFolder: (noteId: string, folderId: string | null) => void;
   onDeleteNote: (note: Note) => void;
+  searchFocusSignal?: number;
 };
 
 type FolderNode = Folder & { children: FolderNode[]; depth: number };
@@ -132,7 +133,8 @@ export default function NoteList({
   onCreateNote,
   onTogglePin,
   onChangeNoteFolder,
-  onDeleteNote
+  onDeleteNote,
+  searchFocusSignal = 0
 }: NoteListProps) {
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderColor, setNewFolderColor] = useState(DEFAULT_FOLDER_COLOR);
@@ -145,6 +147,7 @@ export default function NoteList({
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState('');
   const createFormRef = useRef<HTMLFormElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const folderTree = useMemo(() => buildFolderTree(folders), [folders]);
   const folderOptions = useMemo(() => flattenFolderTree(folderTree), [folderTree]);
@@ -165,6 +168,17 @@ export default function NoteList({
       });
     }
   }, [showCreateFolder]);
+
+  useEffect(() => {
+    if (searchFocusSignal > 0) {
+      window.requestAnimationFrame(() => searchInputRef.current?.focus());
+    }
+  }, [searchFocusSignal]);
+
+  function focusSearchInput() {
+    searchInputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    searchInputRef.current?.focus();
+  }
 
   const noteCountByFolder = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -410,7 +424,7 @@ export default function NoteList({
           <p>폴더를 정리하고 메모를 계층별로 관리하세요.</p>
         </div>
         <div className="header-actions">
-          <button type="button" className="header-icon-button" title="메모 검색">
+          <button type="button" className="header-icon-button" title="메모 검색" onClick={focusSearchInput}>
             ⌕
           </button>
           <button
@@ -512,6 +526,7 @@ export default function NoteList({
       </section>
 
       <input
+        ref={searchInputRef}
         className="search-input search-input-redesign"
         value={searchTerm}
         onChange={(event) => onSearchTermChange(event.target.value)}

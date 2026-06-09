@@ -11,6 +11,8 @@ type NoteEditorProps = {
   onChangeNoteFolder: (noteId: string, folderId: string | null) => void;
   onUploadAudio: (note: Note, file: File) => void;
   onDeleteAudio: (audioFile: AudioFile) => void;
+  onTogglePin: (note: Note) => void;
+  onDeleteNote: (note: Note) => void;
   onBackToList?: () => void;
 };
 
@@ -110,12 +112,15 @@ export default function NoteEditor({
   onChangeNoteFolder,
   onUploadAudio,
   onDeleteAudio,
+  onTogglePin,
+  onDeleteNote,
   onBackToList
 }: NoteEditorProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [textColor, setTextColor] = useState(TEXT_COLOR_PRESETS[0]);
   const [fontSize, setFontSize] = useState('3');
+  const [showNoteMenu, setShowNoteMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
 
@@ -126,7 +131,7 @@ export default function NoteEditor({
     if (editorRef.current) editorRef.current.innerHTML = nextContent;
     setTextColor(TEXT_COLOR_PRESETS[0]);
     setFontSize('3');
-  }, [note?.id, note?.content]);
+  }, [note?.id]);
 
   useEffect(() => {
     if (!note) return;
@@ -175,6 +180,33 @@ export default function NoteEditor({
     onUploadAudio(note, file);
   }
 
+
+  function getCurrentContent() {
+    return editorRef.current?.innerHTML ?? content;
+  }
+
+  function handleDone() {
+    if (!note) return;
+    const currentContent = getCurrentContent();
+    setContent(currentContent);
+    onUpdateNote(note.id, { title, content: currentContent });
+    setShowNoteMenu(false);
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    onBackToList?.();
+  }
+
+  function handleMenuUploadMp3() {
+    setShowNoteMenu(false);
+    fileInputRef.current?.click();
+  }
+
+  function handleMenuDeleteNote() {
+    if (!note) return;
+    setShowNoteMenu(false);
+    onDeleteNote(note);
+    onBackToList?.();
+  }
+
   if (!note) {
     return (
       <section className="editor empty-editor editor-redesign-shell">
@@ -194,10 +226,28 @@ export default function NoteEditor({
             <span><i>☁</i> {statusText(saveStatus)} • 방금 전</span>
           </div>
           <div className="mobile-action-group">
-            <button type="button" className="mobile-nav-button">✓</button>
-            <button type="button" className="mobile-nav-button">⋮</button>
+            <button type="button" className="mobile-nav-button" onClick={handleDone} title="작성 완료">✓</button>
+            <button
+              type="button"
+              className={`mobile-nav-button ${showNoteMenu ? 'active' : ''}`}
+              onClick={() => setShowNoteMenu((current) => !current)}
+              title="메모 메뉴"
+            >
+              ⋮
+            </button>
           </div>
         </div>
+
+        {showNoteMenu && (
+          <div className="editor-card note-more-menu">
+            <button type="button" onClick={() => { onTogglePin(note); setShowNoteMenu(false); }}>
+              {note.is_pinned ? '고정 해제' : '메모 고정'}
+            </button>
+            <button type="button" onClick={handleMenuUploadMp3}>MP3 파일 추가</button>
+            <button type="button" onClick={handleDone}>저장 후 목록으로</button>
+            <button type="button" className="danger" onClick={handleMenuDeleteNote}>메모 삭제</button>
+          </div>
+        )}
 
         <div className="editor-card title-card">
           <input
@@ -306,7 +356,6 @@ export default function NoteEditor({
             onInput={syncEditorContent}
             onBlur={syncEditorContent}
             suppressContentEditableWarning
-            dangerouslySetInnerHTML={{ __html: content }}
           />
           <span className="content-count">{characterCount.toLocaleString()}자 · 무제한</span>
         </div>

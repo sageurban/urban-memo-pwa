@@ -2102,3 +2102,44 @@ button:disabled {
     box-shadow: 0 12px 34px rgba(0,0,0,0.32);
   }
 }
+
+
+/* Action wiring update */
+.mobile-nav-button.active,
+.mobile-bottom-nav button.active {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.18);
+}
+
+.note-more-menu {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.note-more-menu button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 13px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--text);
+  text-align: left;
+}
+
+.note-more-menu button:hover {
+  transform: none;
+  background: rgba(255,255,255,0.07);
+}
+
+.note-more-menu button.danger {
+  color: #ff8f8f;
+}
+
+.search-input-redesign:focus {
+  border-color: rgba(88,145,255,0.72);
+  box-shadow: 0 0 0 3px rgba(88,145,255,0.15);
+}
