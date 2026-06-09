@@ -1,8 +1,16 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Folder, Note } from '../types/note';
 import { AdvancedFilters, BPM_PRESETS, GENRE_PRESETS, getNoteTypeOption, HARMONY_PRESETS, INSTRUMENT_PRESETS, KEY_PRESETS, MOOD_PRESETS, NOTE_TYPE_OPTIONS, NoteType, SECTION_PRESETS, splitTags } from '../lib/musicTemplates';
 
 type FolderFilter = 'all' | 'unfiled' | string;
+
+type RecentWorkItem = {
+  id: string;
+  title: string;
+  note_type: NoteType;
+  folderName: string;
+  updated_at: string;
+};
 
 type NoteListProps = {
   notes: Note[];
@@ -27,6 +35,8 @@ type NoteListProps = {
   advancedFilters: AdvancedFilters;
   onAdvancedFiltersChange: (filters: AdvancedFilters) => void;
   onClearAdvancedFilters: () => void;
+  recentWork?: RecentWorkItem[];
+  onSelectRecentWork?: (noteId: string) => void;
 };
 
 type FolderNode = Folder & { children: FolderNode[]; depth: number };
@@ -145,7 +155,9 @@ export default function NoteList({
   onTypeFilterChange,
   advancedFilters,
   onAdvancedFiltersChange,
-  onClearAdvancedFilters
+  onClearAdvancedFilters,
+  recentWork = [],
+  onSelectRecentWork
 }: NoteListProps) {
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderColor, setNewFolderColor] = useState(DEFAULT_FOLDER_COLOR);
@@ -490,6 +502,34 @@ export default function NoteList({
         <span>✦ 타입별 템플릿으로 분석 데이터를 통일하고, 검색/필터로 작곡 재료를 빠르게 찾을 수 있어요.</span>
       </div>
 
+      {recentWork.length > 0 && (
+        <section className="recent-work-panel" aria-label="Recent work">
+          <div className="recent-work-head">
+            <strong>Recent Work</strong>
+            <span>{recentWork.length}</span>
+          </div>
+          <div className="recent-work-list">
+            {recentWork.slice(0, 5).map((item) => {
+              const option = getNoteTypeOption(item.note_type);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onSelectRecentWork?.(item.id)}
+                  style={{ '--note-type-color': option.color } as CSSProperties}
+                >
+                  <i />
+                  <span>
+                    <strong>{item.title || 'Untitled'}</strong>
+                    <em>{option.shortLabel} · {item.folderName}</em>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       <section className="folder-panel folder-panel-redesign" aria-label="Folders">
         <div className="folder-panel-header folder-panel-header-redesign">
           <div>
@@ -779,7 +819,8 @@ export default function NoteList({
             return (
               <article
                 key={note.id}
-                className={`note-row ${selectedNoteId === note.id ? 'selected' : ''}`}
+                className={`note-row note-row-colored ${selectedNoteId === note.id ? 'selected' : ''}`}
+                style={{ '--note-type-color': getNoteTypeOption(note.note_type).color } as CSSProperties}
                 onClick={() => onSelectNote(note)}
               >
                 <div className="note-row-main">

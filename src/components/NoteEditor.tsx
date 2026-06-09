@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { CSSProperties, ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AudioFile, AudioMarker, Folder, Note, SaveStatus } from '../types/note';
 import { GENRE_PRESETS, KEY_PRESETS, MOOD_PRESETS, SECTION_PRESETS, getNoteTypeOption, MusicMetadata, splitTags } from '../lib/musicTemplates';
 
@@ -112,6 +112,24 @@ function formatTime(value: number | string) {
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+
+function markerColor(marker: Pick<AudioMarker, 'section_name' | 'marker_type' | 'energy'>) {
+  const section = `${marker.section_name} ${marker.marker_type}`.toLowerCase();
+  if (section.includes('chorus') || section.includes('hook')) return '#a78bfa';
+  if (section.includes('pre')) return '#f59e0b';
+  if (section.includes('verse')) return '#60a5fa';
+  if (section.includes('bridge')) return '#22d3ee';
+  if (section.includes('intro') || section.includes('outro')) return '#94a3b8';
+  if (section.includes('chord')) return '#34d399';
+  if (section.includes('rhythm')) return '#fb923c';
+  if (section.includes('sound')) return '#38bdf8';
+  const energy = Number(marker.energy) || 0;
+  if (energy >= 80) return '#f472b6';
+  if (energy >= 55) return '#a78bfa';
+  if (energy >= 30) return '#60a5fa';
+  return '#94a3b8';
 }
 
 function markerDraftFromMarker(marker: AudioMarker): MarkerDraft {
@@ -656,7 +674,7 @@ export default function NoteEditor({
 
               <div className="energy-graph">
                 {sortedMarkers.filter((marker) => marker.energy != null).map((marker) => (
-                  <button type="button" key={marker.id} onClick={() => seekToMarker(marker)}>
+                  <button type="button" key={marker.id} onClick={() => seekToMarker(marker)} style={{ '--marker-color': markerColor(marker) } as CSSProperties}>
                     <span>{marker.section_name || marker.marker_type}</span>
                     <i><b style={{ width: `${Math.max(0, Math.min(100, Number(marker.energy) || 0))}%` }} /></i>
                     <em>{marker.energy}</em>
@@ -708,7 +726,7 @@ export default function NoteEditor({
               visibleMarkers.map((marker) => {
                 const isEditing = editingMarkerId === marker.id;
                 return (
-                  <article className="marker-row" key={marker.id}>
+                  <article className="marker-row marker-row-colored" key={marker.id} style={{ '--marker-color': markerColor(marker) } as CSSProperties}>
                     <button type="button" className="marker-time" onClick={() => seekToMarker(marker)}>{formatTime(marker.time_seconds)}</button>
                     {isEditing ? (
                       <div className="marker-edit-panel">

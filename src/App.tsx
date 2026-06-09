@@ -7,13 +7,54 @@ import MusicDashboard from './components/MusicDashboard';
 import ChordTransposeWidget from './components/ChordTransposeWidget';
 import { supabase } from './lib/supabase';
 import { AudioFile, AudioMarker, Folder, Note, SaveStatus } from './types/note';
-import { AdvancedFilters, defaultMetadataForTypes, defaultTitleForTypes, EMPTY_ADVANCED_FILTERS, MusicMetadata, normalizeTemplateTypes, NoteType, splitTags, templateContentForTypes } from './lib/musicTemplates';
+import { AdvancedFilters, defaultMetadataForTypes, defaultTitleForTypes, EMPTY_ADVANCED_FILTERS, getNoteTypeOption, MusicMetadata, normalizeTemplateTypes, NoteType, splitTags, templateContentForTypes } from './lib/musicTemplates';
 
 type FolderFilter = 'all' | 'unfiled' | string;
 
 const AUDIO_BUCKET = 'note-audio';
 const SIGNED_URL_EXPIRES_IN = 60 * 60 * 24;
 const DEFAULT_FOLDER_COLOR = '#f4f0e8';
+
+const RECENT_WORK_KEY = 'urban-music-library-recent-work';
+
+type RecentWorkItem = {
+  id: string;
+  title: string;
+  note_type: NoteType;
+  folderName: string;
+  updated_at: string;
+};
+
+function loadRecentWork(): RecentWorkItem[] {
+  try {
+    const raw = window.localStorage.getItem(RECENT_WORK_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item) => item && typeof item.id === 'string').slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentWork(items: RecentWorkItem[]) {
+  window.localStorage.setItem(RECENT_WORK_KEY, JSON.stringify(items.slice(0, 8)));
+}
+
+function getFolderPath(folderId: string | null, folders: Folder[]) {
+  if (!folderId) return 'Unfiled';
+  const byId = new Map(folders.map((folder) => [folder.id, folder]));
+  const parts: string[] = [];
+  let current = byId.get(folderId);
+  let guard = 0;
+
+  while (current && guard < 12) {
+    parts.unshift(current.name);
+    current = current.parent_id ? byId.get(current.parent_id) : undefined;
+    guard += 1;
+  }
+
+  return parts.length > 0 ? parts.join(' / ') : 'Unfiled';
+}
 
 function createLocalNote(userId: string, folderId: string | null, noteTypes: NoteType | NoteType[] = 'general'): Note {
   const now = new Date().toISOString();
@@ -156,10 +197,15 @@ export default function App() {
   const [searchFocusSignal, setSearchFocusSignal] = useState(0);
   const [chordToolSeed, setChordToolSeed] = useState('');
   const [chordToolOpenSignal, setChordToolOpenSignal] = useState(0);
+  const [recentWork, setRecentWork] = useState<RecentWorkItem[]>(() => loadRecentWork());
 
   const selectedNote = useMemo(() => {
     return notes.find((note) => note.id === selectedNoteId) ?? null;
   }, [notes, selectedNoteId]);
+
+
+  const selectedNoteTypeOption = useMemo(() => getNoteTypeOption(selectedNote?.note_type), [selectedNote?.note_type]);
+  const selectedFolderPath = useMemo(() => getFolderPath(selectedNote?.folder_id ?? null, folders), [selectedNote?.folder_id, folders]);
 
   const selectedFolderScope = useMemo(() => {
     if (selectedFolderId === 'all' || selectedFolderId === 'unfiled') return null;
@@ -196,6 +242,24 @@ export default function App() {
       .filter((marker) => marker.note_id === selectedNoteId)
       .sort((a, b) => Number(a.time_seconds) - Number(b.time_seconds));
   }, [audioMarkers, selectedNoteId]);
+
+
+  useEffect(() => {
+    if (!selectedNote) return;
+    const nextItem: RecentWorkItem = {
+      id: selectedNote.id,
+      title: selectedNote.title || 'Untitled',
+      note_type: selectedNote.note_type,
+      folderName: getFolderPath(selectedNote.folder_id, folders),
+      updated_at: selectedNote.updated_at
+    };
+
+    setRecentWork((current) => {
+      const next = [nextItem, ...current.filter((item) => item.id !== selectedNote.id)].slice(0, 8);
+      saveRecentWork(next);
+      return next;
+    });
+  }, [selectedNote?.id, selectedNote?.title, selectedNote?.note_type, selectedNote?.folder_id, selectedNote?.updated_at, folders]);
 
   const fetchFolders = useCallback(async () => {
     if (!session?.user.id) return;
@@ -312,6 +376,8 @@ export default function App() {
         setSelectedFolderId('all');
         setMobileView('folders');
         setMainView('library');
+        setRecentWork([]);
+        saveRecentWork([]);
       }
     });
 
@@ -917,13 +983,27 @@ export default function App() {
         advancedFilters={advancedFilters}
         onAdvancedFiltersChange={setAdvancedFilters}
         onClearAdvancedFilters={clearAllFilters}
+        recentWork={recentWork}
+        onSelectRecentWork={(noteId) => {
+          const note = notes.find((item) => item.id === noteId);
+          if (!note) return;
+          setSelectedNoteId(note.id);
+          setMainView('library');
+          setMobileView('editor');
+        }}
       />
 
       <main className="main-panel">
         <header className="top-bar app-top-bar-v5">
-          <div>
-            <strong>{session.user.email}</strong>
-            <span>{mainView === 'library' ? 'Library workspace' : mainView === 'dashboard' ? 'Dashboard explorer' : 'Settings'}</span>
+          <div className="top-bar-status">
+            <strong>{mainView === 'library' ? (selectedNote?.title || 'Library workspace') : mainView === 'dashboard' ? 'Dashboard explorer' : 'Settings'}</strong>
+            <span className="workspace-breadcrumb">
+              {mainView === 'library'
+                ? `Library / ${selectedFolderPath} / ${selectedNoteTypeOption.shortLabel}`
+                : mainView === 'dashboard'
+                  ? 'Dashboard / Music data overview'
+                  : `Settings / ${session.user.email}`}
+            </span>
           </div>
 
           <nav className="main-view-tabs" aria-label="Main workspace views">

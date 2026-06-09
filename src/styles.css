@@ -4337,3 +4337,345 @@ button:disabled {
     min-height: 38px;
   }
 }
+
+/* v5.3 Visual System & Usability Polish */
+:root {
+  --bg: #080a0f;
+  --panel: #10131a;
+  --panel-2: #151922;
+  --panel-3: #1c2230;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --text: #f3f5fa;
+  --muted: #9aa3b5;
+  --accent: #7c5cff;
+  --accent-soft: #a98bff;
+  --success: #34d399;
+  --warning: #f59e0b;
+  --danger: #ff7a8a;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  --type-general: #8e8e93;
+  --type-song: #7c5cff;
+  --type-chord: #35c759;
+  --type-rhythm: #ff9f0a;
+  --type-sound: #32d2d2;
+  --type-lyrics: #ff5a8a;
+  --type-demo: #4d9fff;
+}
+
+body {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(124, 92, 255, 0.18), transparent 30rem),
+    radial-gradient(circle at 100% 20%, rgba(50, 210, 210, 0.11), transparent 34rem),
+    radial-gradient(circle at 80% 100%, rgba(77, 159, 255, 0.09), transparent 30rem),
+    var(--bg);
+}
+
+button {
+  background: var(--accent);
+  color: #f9f8ff;
+}
+
+input,
+textarea,
+select,
+.content-editor,
+.content-editor-redesign {
+  background-color: rgba(16, 19, 26, 0.86) !important;
+  color: var(--text) !important;
+}
+
+.app-shell,
+.main-panel {
+  background:
+    radial-gradient(circle at top right, rgba(124, 92, 255, 0.10), transparent 32rem),
+    #080a0f;
+}
+
+.sidebar,
+.sidebar-redesign,
+.top-bar,
+.app-top-bar-v5 {
+  background: rgba(8, 10, 15, 0.82);
+  border-color: var(--line);
+}
+
+.top-bar-status {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.top-bar-status strong {
+  max-width: min(48vw, 640px);
+}
+
+.workspace-breadcrumb {
+  display: inline-flex;
+  max-width: min(58vw, 720px);
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-bar-status::before {
+  content: 'Current Work';
+  width: fit-content;
+  padding: 3px 8px;
+  border: 1px solid rgba(124, 92, 255, 0.34);
+  border-radius: 999px;
+  color: var(--accent-soft);
+  background: rgba(124, 92, 255, 0.12);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.recent-work-panel {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.018));
+  display: grid;
+  gap: 10px;
+}
+
+.recent-work-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.recent-work-head strong {
+  color: var(--text);
+}
+
+.recent-work-list {
+  display: grid;
+  gap: 8px;
+}
+
+.recent-work-list button {
+  display: grid;
+  grid-template-columns: 4px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.055);
+  background: rgba(255,255,255,0.025);
+  color: var(--text);
+  text-align: left;
+}
+
+.recent-work-list button:hover {
+  border-color: color-mix(in srgb, var(--note-type-color) 52%, rgba(255,255,255,0.14));
+  background: color-mix(in srgb, var(--note-type-color) 10%, rgba(255,255,255,0.03));
+  transform: none;
+}
+
+.recent-work-list i {
+  width: 4px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--note-type-color, var(--accent));
+  box-shadow: 0 0 22px color-mix(in srgb, var(--note-type-color) 45%, transparent);
+}
+
+.recent-work-list span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.recent-work-list strong,
+.recent-work-list em {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.recent-work-list strong {
+  font-size: 13px;
+}
+
+.recent-work-list em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+}
+
+.folder-tip-banner,
+.folder-panel-redesign,
+.editor-card,
+.workspace-view,
+.settings-card-v5,
+.template-picker-card,
+.advanced-filter-panel {
+  background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.018));
+  border-color: var(--line);
+}
+
+.note-row-colored {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255,255,255,0.055);
+  background: rgba(255,255,255,0.025);
+}
+
+.note-row-colored::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--note-type-color, var(--accent));
+  box-shadow: 0 0 24px color-mix(in srgb, var(--note-type-color) 48%, transparent);
+}
+
+.note-row-colored:hover,
+.note-row-colored.selected {
+  border-color: color-mix(in srgb, var(--note-type-color) 40%, rgba(255,255,255,0.12));
+  background: color-mix(in srgb, var(--note-type-color) 8%, rgba(255,255,255,0.035));
+}
+
+.note-row-colored .note-row-main {
+  padding-left: 8px;
+}
+
+.note-type-badge {
+  background: color-mix(in srgb, currentColor 13%, transparent);
+  border-width: 1px;
+  border-style: solid;
+}
+
+.note-meta-chips b,
+.active-filter-chips button,
+.note-tag-row button {
+  background: rgba(255,255,255,0.045);
+  border-color: rgba(255,255,255,0.075);
+}
+
+.folder-system-row.active,
+.folder-item-card.active,
+.main-view-tabs button.active,
+.mobile-bottom-nav button.active:not(.center-action) {
+  border-color: rgba(124, 92, 255, 0.38);
+  background: rgba(124, 92, 255, 0.12);
+  color: var(--text);
+}
+
+.timeline-segment {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--marker-color, var(--accent)) 92%, white 8%), color-mix(in srgb, var(--marker-color, var(--accent)) 72%, #080a0f 28%));
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--marker-color, var(--accent)) 22%, transparent);
+  border-color: color-mix(in srgb, var(--marker-color, var(--accent)) 65%, rgba(255,255,255,0.18));
+}
+
+.timeline-segment.looping {
+  outline: 2px solid color-mix(in srgb, var(--marker-color, var(--accent)) 70%, white 30%);
+  outline-offset: 3px;
+}
+
+.energy-graph button {
+  border-left: 4px solid var(--marker-color, var(--accent));
+}
+
+.energy-graph b {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--marker-color, var(--accent)) 82%, #60a5fa 18%), color-mix(in srgb, var(--marker-color, var(--accent)) 92%, #f472b6 8%));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--marker-color, var(--accent)) 32%, transparent);
+}
+
+.marker-row-colored {
+  position: relative;
+  border-color: rgba(255,255,255,0.06);
+  background: linear-gradient(180deg, rgba(255,255,255,0.038), rgba(255,255,255,0.018));
+}
+
+.marker-row-colored::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--marker-color, var(--accent));
+}
+
+.marker-time {
+  background: color-mix(in srgb, var(--marker-color, var(--accent)) 16%, rgba(255,255,255,0.04));
+  color: color-mix(in srgb, var(--marker-color, var(--accent)) 72%, white 28%);
+  border: 1px solid color-mix(in srgb, var(--marker-color, var(--accent)) 32%, rgba(255,255,255,0.08));
+}
+
+.improved-empty-state {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(124, 92, 255, 0.16), transparent 16rem),
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.018));
+  border-color: rgba(124, 92, 255, 0.24);
+  text-align: left;
+}
+
+.improved-empty-state strong::before {
+  content: '✦';
+  margin-right: 8px;
+  color: var(--accent-soft);
+}
+
+.improved-empty-state .empty-state-actions button:first-child {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.improved-empty-state .empty-state-actions button:last-child {
+  background: linear-gradient(135deg, var(--accent), #4d9fff);
+  color: white;
+}
+
+.audio-empty,
+.timeline-panel .audio-empty,
+.empty-state {
+  border-color: rgba(124, 92, 255, 0.20);
+  background: rgba(124, 92, 255, 0.055);
+}
+
+.chord-widget-result,
+.chord-result-box,
+.transpose-result {
+  border-color: rgba(52, 211, 153, 0.34) !important;
+  background: rgba(52, 211, 153, 0.08) !important;
+}
+
+@media (max-width: 760px) {
+  .workspace-breadcrumb {
+    max-width: 64vw;
+    font-size: 12px;
+  }
+
+  .top-bar-status::before {
+    display: none;
+  }
+
+  .recent-work-panel {
+    padding: 12px;
+  }
+
+  .recent-work-list {
+    grid-template-columns: 1fr;
+  }
+
+  .note-row-colored::before,
+  .marker-row-colored::before {
+    top: 12px;
+    bottom: 12px;
+  }
+}

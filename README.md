@@ -125,3 +125,15 @@ This update focuses on usability and UI/UX refinement rather than new database f
 ### Supabase
 
 No SQL migration is required for this update.
+
+## v5.3 Visual System & Usability Polish
+
+This update focuses on visual clarity and daily usability without adding new database requirements.
+
+- Refined dark theme color system with navy-black panels and violet/cyan accents.
+- Added current work status breadcrumb in the top bar.
+- Added recent work history in the library sidebar.
+- Added type-color accent lines to note cards.
+- Improved Audio Timeline color coding by section/type/energy.
+- Improved empty states with clearer calls to action.
+- Kept existing Supabase schema unchanged.
