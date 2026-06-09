@@ -104,3 +104,24 @@ This update separates the workspace into Library, Dashboard, Tools, and Settings
 
 ### Supabase
 No new SQL migration is required for this update.
+
+## v5.2 UI Density & Focus Mode Polish
+
+This update focuses on usability and UI/UX refinement rather than new database features.
+
+### Included
+
+- Lower-density note cards: fewer visible badges, hidden metadata summarized as `+N`.
+- Quick Create shortcuts for Song Analysis, Chord Idea, Rhythm, Demo Plan, and Custom Mix.
+- Active Filters area improved and visually separated from Advanced Filters.
+- Editor section folding for Metadata, MP3 Files, and Audio Timeline.
+- Text Editor remains open as the main writing focus area.
+- Chord Transpose floating widget now supports three states: closed, mini, and expanded.
+- Empty states now provide actions such as Clear Filters and Create Song Analysis.
+- Dashboard clickable items get stronger hover/visual affordance.
+- Metadata entry has preset suggestions for Genre, Key, Mood, and Section.
+- Mobile spacing and filter panel behavior refined.
+
+### Supabase
+
+No SQL migration is required for this update.

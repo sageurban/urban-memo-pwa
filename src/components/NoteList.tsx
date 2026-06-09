@@ -707,6 +707,14 @@ export default function NoteList({
         <button type="button" className="new-note-button" onClick={() => setShowTemplatePicker((current) => !current)}>새 메모</button>
       </div>
 
+      <div className="quick-create-row-v52">
+        <button type="button" onClick={() => onCreateNote('song_analysis')}>+ Song Analysis</button>
+        <button type="button" onClick={() => onCreateNote('chord_progression')}>+ Chord Idea</button>
+        <button type="button" onClick={() => onCreateNote('rhythm_pattern')}>+ Rhythm</button>
+        <button type="button" onClick={() => onCreateNote('demo_idea')}>+ Demo Plan</button>
+        <button type="button" className="custom-mix" onClick={() => setShowTemplatePicker((current) => !current)}>Custom Mix</button>
+      </div>
+
       {showTemplatePicker && (
         <div className="template-picker-card multi-template-picker">
           <div className="template-picker-head">
@@ -750,13 +758,24 @@ export default function NoteList({
 
       <div className="note-list">
         {notes.length === 0 ? (
-          <div className="empty-state">
-            <strong>아직 메모가 없어요.</strong>
-            <span>새 메모를 만들어 폴더에 정리해보세요.</span>
+          <div className="empty-state improved-empty-state">
+            <strong>검색 결과가 없습니다.</strong>
+            <span>필터를 줄이거나 새 분석 메모를 만들어보세요.</span>
+            <div className="empty-state-actions">
+              <button type="button" onClick={onClearAdvancedFilters}>필터 초기화</button>
+              <button type="button" onClick={() => onCreateNote('song_analysis')}>Song Analysis 만들기</button>
+            </div>
           </div>
         ) : (
           notes.map((note) => {
             const preview = stripHtml(note.content);
+            const primaryMetaChips = [note.metadata?.genre, note.metadata?.bpm ? `${note.metadata.bpm} BPM` : '', note.metadata?.key, note.metadata?.section].filter(Boolean);
+            const secondaryMetaChips = [note.metadata?.mood, note.metadata?.harmony, note.metadata?.confidence].filter(Boolean);
+            const visibleMetaChips = [...primaryMetaChips, ...secondaryMetaChips].slice(0, 5);
+            const hiddenMetaCount = Math.max(0, primaryMetaChips.length + secondaryMetaChips.length - visibleMetaChips.length);
+            const noteTags = splitTags(note.metadata?.tags);
+            const visibleTags = noteTags.slice(0, 2);
+            const hiddenTagCount = Math.max(0, noteTags.length - visibleTags.length);
             return (
               <article
                 key={note.id}
@@ -772,22 +791,18 @@ export default function NoteList({
                     <strong>{note.title || 'Untitled'}</strong>
                   </div>
                   <p>{preview || 'No content yet'}</p>
-                  <div className="note-meta-chips">
-                    {note.metadata?.genre && <b>{note.metadata.genre}</b>}
-                    {note.metadata?.bpm && <b>{note.metadata.bpm} BPM</b>}
-                    {note.metadata?.key && <b>{note.metadata.key}</b>}
-                    {note.metadata?.section && <b>{note.metadata.section}</b>}
-                    {note.metadata?.mood && <b>{note.metadata.mood}</b>}
-                    {note.metadata?.harmony && <b>{note.metadata.harmony}</b>}
-                    {note.metadata?.confidence && <b className={`confidence-${note.metadata.confidence.toLowerCase()}`}>{note.metadata.confidence}</b>}
+                  <div className="note-meta-chips compact-note-meta">
+                    {visibleMetaChips.map((chip) => <b key={String(chip)}>{chip}</b>)}
+                    {hiddenMetaCount > 0 && <b className="more-chip">+{hiddenMetaCount}</b>}
                   </div>
-                  {splitTags(note.metadata?.tags).length > 0 && (
-                    <div className="note-tag-row" onClick={(event) => event.stopPropagation()}>
-                      {splitTags(note.metadata?.tags).slice(0, 5).map((tag) => (
+                  {noteTags.length > 0 && (
+                    <div className="note-tag-row compact-note-tags" onClick={(event) => event.stopPropagation()}>
+                      {visibleTags.map((tag) => (
                         <button key={tag} type="button" onClick={() => updateAdvancedFilter('tag', tag)}>
                           #{tag.replace(/^#/, '')}
                         </button>
                       ))}
+                      {hiddenTagCount > 0 && <button type="button" className="more-tag-chip">+{hiddenTagCount}</button>}
                     </div>
                   )}
                   <span>{formatDate(note.updated_at)}</span>

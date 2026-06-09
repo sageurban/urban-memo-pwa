@@ -60,7 +60,7 @@ export default function ChordTransposeWidget({
   onInsertIntoCurrentNote
 }: ChordTransposeWidgetProps) {
   const storedKeys = loadStoredKeys();
-  const [isOpen, setIsOpen] = useState(false);
+  const [widgetMode, setWidgetMode] = useState<'closed' | 'mini' | 'expanded'>('closed');
   const [originalKey, setOriginalKey] = useState(storedKeys?.originalKey ?? 'B Major');
   const [targetKey, setTargetKey] = useState(storedKeys?.targetKey ?? 'D Major');
   const [progression, setProgression] = useState(seedProgression || 'Bmaj9 - F#/A# - G#m7 - Emaj9');
@@ -70,11 +70,11 @@ export default function ChordTransposeWidget({
   useEffect(() => {
     if (!seedProgression.trim()) return;
     setProgression(seedProgression);
-    setIsOpen(true);
+    setWidgetMode('expanded');
   }, [seedProgression, openSignal]);
 
   useEffect(() => {
-    if (openSignal > 0) setIsOpen(true);
+    if (openSignal > 0) setWidgetMode('expanded');
   }, [openSignal]);
 
   useEffect(() => {
@@ -151,27 +151,47 @@ export default function ChordTransposeWidget({
     setOriginalKey(item.originalKey);
     setTargetKey(item.targetKey);
     setProgression(item.progression);
-    setIsOpen(true);
+    setWidgetMode('expanded');
   }
 
-  return (
-    <aside className={`floating-chord-widget ${isOpen ? 'open' : 'collapsed'}`} aria-label="Chord transpose tool">
-      <button type="button" className="floating-chord-trigger" onClick={() => setIsOpen((value) => !value)}>
-        <span>♬</span>
-        <strong>Chord Transpose</strong>
-        <em>{isOpen ? '접기' : '열기'}</em>
-      </button>
+  const isExpanded = widgetMode === 'expanded';
+  const isMini = widgetMode === 'mini';
 
-      {isOpen && (
+  return (
+    <aside className={`floating-chord-widget mode-${widgetMode}`} aria-label="Chord transpose tool">
+      {widgetMode === 'closed' && (
+        <button type="button" className="floating-chord-trigger compact-trigger" onClick={() => setWidgetMode('mini')}>
+          <span>♬</span>
+          <strong>Chord</strong>
+        </button>
+      )}
+
+      {isMini && (
+        <div className="floating-chord-mini">
+          <button type="button" className="mini-main" onClick={() => setWidgetMode('expanded')}>
+            <span>Chord Transpose</span>
+            <strong>{transposedProgression || 'Open tool'}</strong>
+            <em>{targetKey}</em>
+          </button>
+          <div className="mini-actions">
+            <button type="button" onClick={() => copyText(transposedProgression, 'Chords copied')}>Copy</button>
+            <button type="button" onClick={insertIntoCurrentNote}>Insert</button>
+            <button type="button" onClick={() => setWidgetMode('closed')}>×</button>
+          </div>
+        </div>
+      )}
+
+      {isExpanded && (
         <div className="floating-chord-panel v5-chord-panel">
           <header>
             <div>
               <strong>Chord Transpose</strong>
               <span>복사, 삽입, 코드 메모 저장까지 바로 처리합니다.</span>
             </div>
-            <button type="button" onClick={() => setIsOpen(false)} aria-label="Close chord transpose tool">
-              ×
-            </button>
+            <div className="widget-window-controls">
+              <button type="button" onClick={() => setWidgetMode('mini')} aria-label="Minimize chord transpose tool">—</button>
+              <button type="button" onClick={() => setWidgetMode('closed')} aria-label="Close chord transpose tool">×</button>
+            </div>
           </header>
 
           <div className="floating-transpose-grid v5-transpose-grid">
@@ -226,6 +246,9 @@ export default function ChordTransposeWidget({
                   <em>{item.targetKey}</em>
                 </button>
               ))}
+              <button type="button" className="clear-recent-button" onClick={() => { setRecentHistory([]); window.localStorage.removeItem(RECENT_STORAGE_KEY); }}>
+                Clear recent
+              </button>
             </div>
           )}
         </div>

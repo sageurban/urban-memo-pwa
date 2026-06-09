@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AudioFile, AudioMarker, Folder, Note, SaveStatus } from '../types/note';
-import { getNoteTypeOption, MusicMetadata, splitTags } from '../lib/musicTemplates';
+import { GENRE_PRESETS, KEY_PRESETS, MOOD_PRESETS, SECTION_PRESETS, getNoteTypeOption, MusicMetadata, splitTags } from '../lib/musicTemplates';
 
 type MarkerDraft = {
   audio_file_id: string;
@@ -234,6 +234,7 @@ export default function NoteEditor({
   const [editingMarkerDraft, setEditingMarkerDraft] = useState<MarkerDraft>(EMPTY_MARKER_DRAFT);
   const [markerTypeFilter, setMarkerTypeFilter] = useState('All');
   const [loopMarkerId, setLoopMarkerId] = useState<string | null>(null);
+  const [openSections, setOpenSections] = useState({ metadata: false, audio: false, timeline: false });
   const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -250,6 +251,7 @@ export default function NoteEditor({
     setEditingMarkerId(null);
     setMarkerTypeFilter('All');
     setLoopMarkerId(null);
+    setOpenSections({ metadata: false, audio: false, timeline: false });
   }, [note?.id]);
 
   useEffect(() => {
@@ -462,6 +464,11 @@ export default function NoteEditor({
     setEditingMarkerId(null);
   }
 
+
+  function toggleEditorSection(section: 'metadata' | 'audio' | 'timeline') {
+    setOpenSections((current) => ({ ...current, [section]: !current[section] }));
+  }
+
   if (!note) {
     return (
       <section className="editor empty-editor editor-redesign-shell">
@@ -511,17 +518,25 @@ export default function NoteEditor({
           </label>
         </div>
 
-        <div className="editor-card music-meta-card">
+        <div className={`editor-card music-meta-card collapsible-editor-card ${openSections.metadata ? 'open' : 'collapsed'}`}>
+          <button type="button" className="collapsible-card-title" onClick={() => toggleEditorSection('metadata')}>
+            <strong>Metadata</strong><span>Genre · BPM · Key · Tags</span><b>{openSections.metadata ? '▴' : '▾'}</b>
+          </button>
+          <div className="collapsible-card-body">
           <div className="music-meta-header">
             <span className="note-type-large-badge" style={{ borderColor: getNoteTypeOption(note.note_type).color, color: getNoteTypeOption(note.note_type).color }}>{getNoteTypeOption(note.note_type).label}</span>
             <small>검색/필터에 쓰이는 음악 분석 데이터</small>
           </div>
           <div className="music-meta-grid">
-            <label>Genre<input value={metadata.genre ?? ''} onChange={(event) => updateMetaField('genre', event.target.value)} placeholder="K-pop / R&B" /></label>
+            <datalist id="note-editor-genre-presets">{GENRE_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            <datalist id="note-editor-key-presets">{KEY_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            <datalist id="note-editor-mood-presets">{MOOD_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            <datalist id="note-editor-section-presets">{SECTION_PRESETS.map((item) => <option key={item} value={item} />)}</datalist>
+            <label>Genre<input list="note-editor-genre-presets" value={metadata.genre ?? ''} onChange={(event) => updateMetaField('genre', event.target.value)} placeholder="K-pop / R&B" /></label>
             <label>BPM<input value={metadata.bpm ?? ''} onChange={(event) => updateMetaField('bpm', event.target.value)} placeholder="134" inputMode="numeric" /></label>
-            <label>Key<input value={metadata.key ?? ''} onChange={(event) => updateMetaField('key', event.target.value)} placeholder="B Major" /></label>
-            <label>Mood<input value={metadata.mood ?? ''} onChange={(event) => updateMetaField('mood', event.target.value)} placeholder="청량 / nostalgic" /></label>
-            <label>Section<input value={metadata.section ?? ''} onChange={(event) => updateMetaField('section', event.target.value)} placeholder="Chorus" /></label>
+            <label>Key<input list="note-editor-key-presets" value={metadata.key ?? ''} onChange={(event) => updateMetaField('key', event.target.value)} placeholder="B Major" /></label>
+            <label>Mood<input list="note-editor-mood-presets" value={metadata.mood ?? ''} onChange={(event) => updateMetaField('mood', event.target.value)} placeholder="청량 / nostalgic" /></label>
+            <label>Section<input list="note-editor-section-presets" value={metadata.section ?? ''} onChange={(event) => updateMetaField('section', event.target.value)} placeholder="Chorus" /></label>
             <label>Harmony<input value={metadata.harmony ?? ''} onChange={(event) => updateMetaField('harmony', event.target.value)} placeholder="Modal Interchange" /></label>
             <label>Instrument<input value={metadata.instrument ?? ''} onChange={(event) => updateMetaField('instrument', event.target.value)} placeholder="EP Pluck" /></label>
             <label>Confidence<select value={metadata.confidence ?? ''} onChange={(event) => updateMetaField('confidence', event.target.value)}><option value="">None</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option></select></label>
@@ -534,8 +549,10 @@ export default function NoteEditor({
             </div>
             <label className="meta-wide">Source<input value={metadata.source ?? ''} onChange={(event) => updateMetaField('source', event.target.value)} placeholder="직접 분석 / 공식 자료 / 추정" /></label>
           </div>
+          </div>
         </div>
 
+        <div className="text-section-focus-header"><strong>Text Editor</strong><span>본문 작성 영역은 항상 열려 있습니다.</span></div>
         <div className="editor-card controls-card">
           <div className="controls-grid">
             <div className="control-block"><span className="control-label">텍스트 크기</span><div className="size-chip-row">{FONT_SIZE_OPTIONS.map((option) => <button key={option.value} type="button" className={`size-chip size-${option.value} ${fontSize === option.value ? 'active' : ''}`} onMouseDown={(event) => event.preventDefault()} onClick={() => applyFontSize(option.value)} title={option.title}>{option.label}</button>)}</div></div>
@@ -563,7 +580,11 @@ export default function NoteEditor({
           <span className="content-count">{characterCount.toLocaleString()}자 · 무제한</span>
         </div>
 
-        <section className="editor-card audio-panel audio-panel-redesign">
+        <section className={`editor-card audio-panel audio-panel-redesign collapsible-editor-card ${openSections.audio ? 'open' : 'collapsed'}`}>
+          <button type="button" className="collapsible-card-title" onClick={() => toggleEditorSection('audio')}>
+            <strong>MP3 Files</strong><span>{audioFiles.length} attached</span><b>{openSections.audio ? '▴' : '▾'}</b>
+          </button>
+          <div className="collapsible-card-body">
           <div className="audio-panel-header audio-panel-header-redesign">
             <div><strong>MP3 파일</strong><span>전체 {audioFiles.length}개</span></div>
             <button type="button" className="upload-mp3-inline" onClick={() => fileInputRef.current?.click()}>＋ MP3 파일 추가</button>
@@ -596,9 +617,14 @@ export default function NoteEditor({
               ))}
             </div>
           )}
+          </div>
         </section>
 
-        <section className="editor-card timeline-panel">
+        <section className={`editor-card timeline-panel collapsible-editor-card ${openSections.timeline ? 'open' : 'collapsed'}`}>
+          <button type="button" className="collapsible-card-title" onClick={() => toggleEditorSection('timeline')}>
+            <strong>Audio Timeline</strong><span>{sortedMarkers.length} markers</span><b>{openSections.timeline ? '▴' : '▾'}</b>
+          </button>
+          <div className="collapsible-card-body">
           <div className="timeline-header">
             <div><strong>Audio Timeline Analysis v2</strong><span>송폼 타임라인, 에너지, A-B Loop, 재사용 아이디어까지 한 번에 관리합니다.</span></div>
             <span className="timeline-count">{sortedMarkers.length} markers</span>
@@ -732,6 +758,7 @@ export default function NoteEditor({
                 );
               })
             )}
+          </div>
           </div>
         </section>
       </div>
