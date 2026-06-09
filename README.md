@@ -1,99 +1,32 @@
-# Urban Music Library v1
+# Urban Music Library v3 - Audio Timeline Analysis
 
-Personal music analysis and production-idea library built on React + Vite + Supabase.
+Personal music analysis library built with React + Vite + Supabase.
 
-## New in v1
+## v3 features
 
-- Note type system
-  - General Note
-  - Song Analysis
-  - Chord Progression
-  - Rhythm Pattern
-  - Sound Design
-  - Lyrics / Hook Idea
-  - My Demo Idea
-- Type-based templates inserted automatically when creating a new note.
-- Type badges on note cards.
-- Type filter chips in the sidebar.
-- Music metadata panel inside the editor.
-  - Genre
-  - BPM
-  - Key
-  - Mood
-  - Section
-  - Harmony
-  - Instrument
-  - Confidence
-  - Tags
-  - Source
-- Search now includes title, content, note type, and metadata values.
-- Existing features preserved:
-  - folders / nested folders
-  - folder colors
-  - folder rename / move / collapse
-  - rich text editor
-  - MP3 upload and playback
-  - mobile responsive UI
+- MP3 upload and playback
+- Audio Timeline Analysis markers
+- Add marker from current playback position
+- Marker fields: time, section, type, title, description, chord progression, bars, energy
+- Click marker time to jump audio playback to that position
+- Edit and delete markers
+- Existing folders, nested folders, templates, metadata, advanced filters, tags, rich text, and MP3 functions are kept
 
-## Supabase migration
+## Apply
 
-Run `supabase/schema.sql` again in Supabase SQL Editor.
-
-This adds:
-
-```sql
-notes.note_type text default 'general'
-notes.metadata jsonb default '{}'
-```
-
-Existing notes are preserved and automatically become `general` notes.
-
-## Apply update
-
-Copy these files into your existing project:
-
-```text
-src/App.tsx
-src/components/NoteList.tsx
-src/components/NoteEditor.tsx
-src/lib/musicTemplates.ts
-src/types/note.ts
-src/styles.css
-supabase/schema.sql
-```
-
-Keep your existing `.env` file.
-
-Then run:
+1. Keep your existing `.env` file.
+2. Replace the project files with this version.
+3. Run the SQL in `supabase/schema.sql` in Supabase SQL Editor.
+4. Build and deploy:
 
 ```bash
+npm install
 npm run build
 git add .
-git commit -m "Add Urban Music Library v1 templates and metadata"
+git commit -m "Add audio timeline analysis v1"
 git push
 ```
 
+## Required Supabase update
 
-## Urban Music Library v2 - Advanced Filters
-
-추가 기능:
-- 고급 필터 패널
-  - Genre
-  - Mood
-  - Section
-  - Key
-  - BPM Range
-  - Harmony
-  - Instrument
-  - Confidence
-  - Tag
-- Active filter chips
-- BPM preset buttons
-- Metadata 기반 검색/필터링
-- 메모 카드에 metadata badge/tag 표시
-- 태그 클릭 시 tag filter 적용
-- NoteEditor에서 태그를 Enter로 추가하고 클릭으로 삭제
-
-SQL:
-- 기존 `notes.metadata` jsonb 컬럼을 사용합니다.
-- 이미 v1에서 metadata 컬럼을 추가했다면 추가 SQL 실행은 필요 없습니다.
+This version adds `audio_markers` table and RLS policies. Run `supabase/schema.sql` once.

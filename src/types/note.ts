@@ -37,4 +37,22 @@ export type AudioFile = {
   signed_url?: string;
 };
 
+
+export type AudioMarker = {
+  id: string;
+  user_id: string;
+  note_id: string;
+  audio_file_id: string | null;
+  time_seconds: number;
+  section_name: string;
+  marker_type: string;
+  title: string;
+  description: string;
+  chord_progression: string;
+  bar_count: number | null;
+  energy: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';

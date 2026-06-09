@@ -86,6 +86,56 @@ on public.notes (user_id, folder_id, updated_at desc);
 create index if not exists audio_files_user_note_idx
 on public.audio_files (user_id, note_id, created_at desc);
 
+create table if not exists public.audio_markers (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  note_id uuid not null references public.notes(id) on delete cascade,
+  audio_file_id uuid references public.audio_files(id) on delete set null,
+  time_seconds numeric not null default 0,
+  section_name text not null default '',
+  marker_type text not null default 'Song Form',
+  title text not null default '',
+  description text not null default '',
+  chord_progression text not null default '',
+  bar_count integer,
+  energy integer,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.audio_markers
+add column if not exists audio_file_id uuid references public.audio_files(id) on delete set null;
+
+alter table public.audio_markers
+add column if not exists time_seconds numeric not null default 0;
+
+alter table public.audio_markers
+add column if not exists section_name text not null default '';
+
+alter table public.audio_markers
+add column if not exists marker_type text not null default 'Song Form';
+
+alter table public.audio_markers
+add column if not exists title text not null default '';
+
+alter table public.audio_markers
+add column if not exists description text not null default '';
+
+alter table public.audio_markers
+add column if not exists chord_progression text not null default '';
+
+alter table public.audio_markers
+add column if not exists bar_count integer;
+
+alter table public.audio_markers
+add column if not exists energy integer;
+
+create index if not exists audio_markers_user_note_time_idx
+on public.audio_markers (user_id, note_id, time_seconds asc);
+
+create index if not exists audio_markers_user_audio_idx
+on public.audio_markers (user_id, audio_file_id, time_seconds asc);
+
 create or replace function public.set_updated_at()
 returns trigger as $$
 begin
@@ -106,9 +156,16 @@ before update on public.notes
 for each row
 execute function public.set_updated_at();
 
+drop trigger if exists audio_markers_set_updated_at on public.audio_markers;
+create trigger audio_markers_set_updated_at
+before update on public.audio_markers
+for each row
+execute function public.set_updated_at();
+
 alter table public.folders enable row level security;
 alter table public.notes enable row level security;
 alter table public.audio_files enable row level security;
+alter table public.audio_markers enable row level security;
 
 drop policy if exists "Users can read own folders" on public.folders;
 create policy "Users can read own folders"
@@ -182,6 +239,32 @@ with check ((select auth.uid()) = user_id);
 drop policy if exists "Users can delete own audio metadata" on public.audio_files;
 create policy "Users can delete own audio metadata"
 on public.audio_files
+for delete
+using ((select auth.uid()) = user_id);
+
+
+drop policy if exists "Users can read own audio markers" on public.audio_markers;
+create policy "Users can read own audio markers"
+on public.audio_markers
+for select
+using ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can insert own audio markers" on public.audio_markers;
+create policy "Users can insert own audio markers"
+on public.audio_markers
+for insert
+with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can update own audio markers" on public.audio_markers;
+create policy "Users can update own audio markers"
+on public.audio_markers
+for update
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can delete own audio markers" on public.audio_markers;
+create policy "Users can delete own audio markers"
+on public.audio_markers
 for delete
 using ((select auth.uid()) = user_id);
 

@@ -4,7 +4,7 @@ import Auth from './components/Auth';
 import NoteEditor from './components/NoteEditor';
 import NoteList from './components/NoteList';
 import { supabase } from './lib/supabase';
-import { AudioFile, Folder, Note, SaveStatus } from './types/note';
+import { AudioFile, AudioMarker, Folder, Note, SaveStatus } from './types/note';
 import { AdvancedFilters, defaultMetadataForTypes, defaultTitleForTypes, EMPTY_ADVANCED_FILTERS, MusicMetadata, normalizeTemplateTypes, NoteType, splitTags, templateContentForTypes } from './lib/musicTemplates';
 
 type FolderFilter = 'all' | 'unfiled' | string;
@@ -139,6 +139,7 @@ export default function App() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
+  const [audioMarkers, setAudioMarkers] = useState<AudioMarker[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<FolderFilter>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -184,6 +185,13 @@ export default function App() {
     return audioFiles.filter((file) => file.note_id === selectedNoteId);
   }, [audioFiles, selectedNoteId]);
 
+  const selectedNoteAudioMarkers = useMemo(() => {
+    if (!selectedNoteId) return [];
+    return audioMarkers
+      .filter((marker) => marker.note_id === selectedNoteId)
+      .sort((a, b) => Number(a.time_seconds) - Number(b.time_seconds));
+  }, [audioMarkers, selectedNoteId]);
+
   const fetchFolders = useCallback(async () => {
     if (!session?.user.id) return;
 
@@ -223,6 +231,29 @@ export default function App() {
     setAudioFiles(nextFiles);
   }, [session?.user.id]);
 
+
+  const fetchAudioMarkers = useCallback(async () => {
+    if (!session?.user.id) return;
+
+    const { data, error } = await supabase
+      .from('audio_markers')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('time_seconds', { ascending: true });
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setAudioMarkers((data ?? []).map((marker) => ({
+      ...marker,
+      time_seconds: Number(marker.time_seconds),
+      bar_count: marker.bar_count ?? null,
+      energy: marker.energy ?? null
+    })) as AudioMarker[]);
+  }, [session?.user.id]);
+
   const fetchNotes = useCallback(async () => {
     if (!session?.user.id) return;
 
@@ -252,8 +283,8 @@ export default function App() {
   }, [session?.user.id, selectedNoteId]);
 
   const refreshWorkspace = useCallback(async () => {
-    await Promise.all([fetchFolders(), fetchNotes(), fetchAudioFiles()]);
-  }, [fetchFolders, fetchNotes, fetchAudioFiles]);
+    await Promise.all([fetchFolders(), fetchNotes(), fetchAudioFiles(), fetchAudioMarkers()]);
+  }, [fetchFolders, fetchNotes, fetchAudioFiles, fetchAudioMarkers]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -267,6 +298,7 @@ export default function App() {
         setFolders([]);
         setNotes([]);
         setAudioFiles([]);
+        setAudioMarkers([]);
         setSelectedNoteId(null);
         setSelectedFolderId('all');
         setMobileView('folders');
@@ -506,6 +538,7 @@ export default function App() {
     const deletedAt = new Date().toISOString();
 
     setNotes((prev) => prev.filter((item) => item.id !== note.id));
+    setAudioMarkers((prev) => prev.filter((marker) => marker.note_id !== note.id));
     if (selectedNoteId === note.id) setSelectedNoteId(null);
 
     const { error } = await supabase
@@ -602,6 +635,116 @@ export default function App() {
     }
   }
 
+
+  async function handleCreateAudioMarker(values: {
+    note_id: string;
+    audio_file_id: string | null;
+    time_seconds: number;
+    section_name: string;
+    marker_type: string;
+    title: string;
+    description: string;
+    chord_progression: string;
+    bar_count: number | null;
+    energy: number | null;
+  }) {
+    if (!session?.user.id) return;
+
+    setErrorMessage('');
+    const now = new Date().toISOString();
+    const optimisticMarker: AudioMarker = {
+      id: crypto.randomUUID(),
+      user_id: session.user.id,
+      note_id: values.note_id,
+      audio_file_id: values.audio_file_id,
+      time_seconds: Number(values.time_seconds) || 0,
+      section_name: values.section_name,
+      marker_type: values.marker_type,
+      title: values.title,
+      description: values.description,
+      chord_progression: values.chord_progression,
+      bar_count: values.bar_count,
+      energy: values.energy,
+      created_at: now,
+      updated_at: now
+    };
+
+    setAudioMarkers((prev) => [...prev, optimisticMarker]);
+
+    const { data, error } = await supabase
+      .from('audio_markers')
+      .insert({
+        user_id: session.user.id,
+        note_id: values.note_id,
+        audio_file_id: values.audio_file_id,
+        time_seconds: values.time_seconds,
+        section_name: values.section_name,
+        marker_type: values.marker_type,
+        title: values.title,
+        description: values.description,
+        chord_progression: values.chord_progression,
+        bar_count: values.bar_count,
+        energy: values.energy
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      setErrorMessage(error.message);
+      setAudioMarkers((prev) => prev.filter((marker) => marker.id !== optimisticMarker.id));
+      return;
+    }
+
+    setAudioMarkers((prev) =>
+      prev.map((marker) =>
+        marker.id === optimisticMarker.id
+          ? { ...data, time_seconds: Number(data.time_seconds), bar_count: data.bar_count ?? null, energy: data.energy ?? null }
+          : marker
+      )
+    );
+  }
+
+  async function handleUpdateAudioMarker(markerId: string, values: Partial<Pick<AudioMarker, 'audio_file_id' | 'time_seconds' | 'section_name' | 'marker_type' | 'title' | 'description' | 'chord_progression' | 'bar_count' | 'energy'>>) {
+    setErrorMessage('');
+    const now = new Date().toISOString();
+
+    setAudioMarkers((prev) =>
+      prev.map((marker) =>
+        marker.id === markerId
+          ? { ...marker, ...values, time_seconds: values.time_seconds ?? marker.time_seconds, updated_at: now }
+          : marker
+      )
+    );
+
+    const { error } = await supabase
+      .from('audio_markers')
+      .update({ ...values, updated_at: now })
+      .eq('id', markerId);
+
+    if (error) {
+      setErrorMessage(error.message);
+      fetchAudioMarkers();
+    }
+  }
+
+  async function handleDeleteAudioMarker(marker: AudioMarker) {
+    const ok = window.confirm(`Delete marker "${marker.title || marker.section_name || marker.marker_type}"?`);
+    if (!ok) return;
+
+    setErrorMessage('');
+    setAudioMarkers((prev) => prev.filter((item) => item.id !== marker.id));
+
+    const { error } = await supabase
+      .from('audio_markers')
+      .delete()
+      .eq('id', marker.id);
+
+    if (error) {
+      setErrorMessage(error.message);
+      fetchAudioMarkers();
+    }
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
   }
@@ -661,6 +804,7 @@ export default function App() {
           note={selectedNote}
           folders={folders}
           audioFiles={selectedNoteAudioFiles}
+          audioMarkers={selectedNoteAudioMarkers}
           saveStatus={saveStatus}
           audioUploadStatus={audioUploadStatus}
           onUpdateNote={handleUpdateNote}
@@ -668,6 +812,9 @@ export default function App() {
           onChangeNoteFolder={handleChangeNoteFolder}
           onUploadAudio={handleUploadAudio}
           onDeleteAudio={handleDeleteAudio}
+          onCreateAudioMarker={handleCreateAudioMarker}
+          onUpdateAudioMarker={handleUpdateAudioMarker}
+          onDeleteAudioMarker={handleDeleteAudioMarker}
           onTogglePin={handleTogglePin}
           onDeleteNote={handleDeleteNote}
           onBackToList={() => setMobileView('folders')}

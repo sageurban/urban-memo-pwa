@@ -2747,3 +2747,255 @@ button:disabled {
     order: 3;
   }
 }
+
+/* Audio Timeline Analysis v1 */
+.timeline-panel {
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.timeline-header div {
+  display: grid;
+  gap: 4px;
+}
+
+.timeline-header span,
+.timeline-count {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.timeline-count {
+  padding: 7px 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  white-space: nowrap;
+}
+
+.marker-create-card,
+.marker-edit-panel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 22px;
+  padding: 14px;
+  background: rgba(255,255,255,0.025);
+}
+
+.marker-create-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 150px) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.marker-create-top label,
+.marker-grid label,
+.marker-edit-panel label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.marker-create-top input,
+.marker-create-top select,
+.marker-grid input,
+.marker-grid select,
+.marker-grid textarea,
+.marker-edit-panel input,
+.marker-edit-panel select,
+.marker-edit-panel textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #101010;
+  color: var(--text);
+  outline: none;
+  padding: 11px 12px;
+  font: inherit;
+}
+
+.marker-grid textarea,
+.marker-edit-panel textarea {
+  min-height: 82px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.marker-create-top button,
+.add-marker-button,
+.marker-actions button {
+  padding: 11px 13px;
+  border-radius: 16px;
+}
+
+.marker-create-top button {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.marker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.marker-wide {
+  grid-column: 1 / -1;
+}
+
+.add-marker-button {
+  justify-self: end;
+  background: var(--accent);
+  color: #111;
+}
+
+.marker-list {
+  display: grid;
+  gap: 10px;
+}
+
+.marker-row {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.025);
+}
+
+.marker-time {
+  height: 42px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ff746b, #ea4f4f);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  padding: 0 10px;
+}
+
+.marker-main {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.marker-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.marker-title-line strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marker-title-line span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.marker-main p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.marker-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.marker-meta-line span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.045);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.marker-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.marker-actions button {
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+}
+
+.marker-actions .danger {
+  color: #ff8f8f;
+}
+
+.marker-edit-panel {
+  grid-column: 2 / -1;
+}
+
+@media (max-width: 860px) {
+  .marker-create-top {
+    grid-template-columns: 1fr;
+  }
+
+  .marker-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .marker-row {
+    grid-template-columns: 1fr;
+  }
+
+  .marker-time {
+    width: fit-content;
+  }
+
+  .marker-actions {
+    justify-content: flex-start;
+  }
+
+  .marker-edit-panel {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .timeline-header {
+    flex-direction: column;
+  }
+
+  .marker-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .add-marker-button,
+  .marker-create-top button {
+    width: 100%;
+  }
+
+  .marker-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}

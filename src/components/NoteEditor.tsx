@@ -1,11 +1,24 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { AudioFile, Folder, Note, SaveStatus } from '../types/note';
+import { AudioFile, AudioMarker, Folder, Note, SaveStatus } from '../types/note';
 import { getNoteTypeOption, MusicMetadata, splitTags } from '../lib/musicTemplates';
+
+type MarkerDraft = {
+  audio_file_id: string;
+  time_seconds: string;
+  section_name: string;
+  marker_type: string;
+  title: string;
+  description: string;
+  chord_progression: string;
+  bar_count: string;
+  energy: string;
+};
 
 type NoteEditorProps = {
   note: Note | null;
   folders: Folder[];
   audioFiles: AudioFile[];
+  audioMarkers: AudioMarker[];
   saveStatus: SaveStatus;
   audioUploadStatus: string;
   onUpdateNote: (noteId: string, values: Pick<Note, 'title' | 'content'>) => void;
@@ -13,6 +26,20 @@ type NoteEditorProps = {
   onChangeNoteFolder: (noteId: string, folderId: string | null) => void;
   onUploadAudio: (note: Note, file: File) => void;
   onDeleteAudio: (audioFile: AudioFile) => void;
+  onCreateAudioMarker: (values: {
+    note_id: string;
+    audio_file_id: string | null;
+    time_seconds: number;
+    section_name: string;
+    marker_type: string;
+    title: string;
+    description: string;
+    chord_progression: string;
+    bar_count: number | null;
+    energy: number | null;
+  }) => void;
+  onUpdateAudioMarker: (markerId: string, values: Partial<Pick<AudioMarker, 'audio_file_id' | 'time_seconds' | 'section_name' | 'marker_type' | 'title' | 'description' | 'chord_progression' | 'bar_count' | 'energy'>>) => void;
+  onDeleteAudioMarker: (marker: AudioMarker) => void;
   onTogglePin: (note: Note) => void;
   onDeleteNote: (note: Note) => void;
   onBackToList?: () => void;
@@ -21,11 +48,24 @@ type NoteEditorProps = {
 type FolderOption = Folder & { depth: number };
 
 const TEXT_COLOR_PRESETS = ['#f4f0e8', '#ff5a5a', '#ffca45', '#6ccd57', '#5891ff'];
+const MARKER_TYPES = ['Song Form', 'Chord', 'Rhythm', 'Arrangement', 'Sound Design', 'Mix', 'Vocal', 'Lyric Hook', 'Reusable Idea'];
 const FONT_SIZE_OPTIONS = [
   { label: '가', value: '2', title: 'Small' },
   { label: '가', value: '3', title: 'Normal' },
   { label: '가', value: '5', title: 'Large' }
 ] as const;
+
+const EMPTY_MARKER_DRAFT: MarkerDraft = {
+  audio_file_id: '',
+  time_seconds: '0',
+  section_name: 'Intro',
+  marker_type: 'Song Form',
+  title: '',
+  description: '',
+  chord_progression: '',
+  bar_count: '',
+  energy: ''
+};
 
 function statusText(status: SaveStatus) {
   switch (status) {
@@ -53,6 +93,44 @@ function formatDate(value: string | null) {
     month: '2-digit',
     day: '2-digit'
   }).format(new Date(value));
+}
+
+function formatTime(value: number | string) {
+  const total = Math.max(0, Math.floor(Number(value) || 0));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function markerDraftFromMarker(marker: AudioMarker): MarkerDraft {
+  return {
+    audio_file_id: marker.audio_file_id ?? '',
+    time_seconds: String(Math.round(Number(marker.time_seconds) || 0)),
+    section_name: marker.section_name ?? '',
+    marker_type: marker.marker_type ?? 'Song Form',
+    title: marker.title ?? '',
+    description: marker.description ?? '',
+    chord_progression: marker.chord_progression ?? '',
+    bar_count: marker.bar_count == null ? '' : String(marker.bar_count),
+    energy: marker.energy == null ? '' : String(marker.energy)
+  };
+}
+
+function markerPayloadFromDraft(noteId: string, draft: MarkerDraft) {
+  const barCount = Number(draft.bar_count);
+  const energy = Number(draft.energy);
+  return {
+    note_id: noteId,
+    audio_file_id: draft.audio_file_id || null,
+    time_seconds: Math.max(0, Number(draft.time_seconds) || 0),
+    section_name: draft.section_name.trim(),
+    marker_type: draft.marker_type.trim() || 'Song Form',
+    title: draft.title.trim(),
+    description: draft.description.trim(),
+    chord_progression: draft.chord_progression.trim(),
+    bar_count: draft.bar_count === '' || !Number.isFinite(barCount) ? null : barCount,
+    energy: draft.energy === '' || !Number.isFinite(energy) ? null : Math.max(0, Math.min(100, energy))
+  };
 }
 
 function escapeHtml(value: string) {
@@ -108,6 +186,7 @@ export default function NoteEditor({
   note,
   folders,
   audioFiles,
+  audioMarkers,
   saveStatus,
   audioUploadStatus,
   onUpdateNote,
@@ -115,6 +194,9 @@ export default function NoteEditor({
   onChangeNoteFolder,
   onUploadAudio,
   onDeleteAudio,
+  onCreateAudioMarker,
+  onUpdateAudioMarker,
+  onDeleteAudioMarker,
   onTogglePin,
   onDeleteNote,
   onBackToList
@@ -126,8 +208,12 @@ export default function NoteEditor({
   const [metadata, setMetadata] = useState<MusicMetadata>({});
   const [tagDraft, setTagDraft] = useState('');
   const [showNoteMenu, setShowNoteMenu] = useState(false);
+  const [markerDraft, setMarkerDraft] = useState<MarkerDraft>(EMPTY_MARKER_DRAFT);
+  const [editingMarkerId, setEditingMarkerId] = useState<string | null>(null);
+  const [editingMarkerDraft, setEditingMarkerDraft] = useState<MarkerDraft>(EMPTY_MARKER_DRAFT);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
 
   useEffect(() => {
     setTitle(note?.title ?? '');
@@ -137,7 +223,15 @@ export default function NoteEditor({
     setTextColor(TEXT_COLOR_PRESETS[0]);
     setFontSize('3');
     setMetadata(note?.metadata ?? {});
+    setEditingMarkerId(null);
   }, [note?.id]);
+
+  useEffect(() => {
+    setMarkerDraft((prev) => ({
+      ...prev,
+      audio_file_id: prev.audio_file_id || audioFiles[0]?.id || ''
+    }));
+  }, [audioFiles]);
 
   useEffect(() => {
     if (!note) return;
@@ -163,13 +257,13 @@ export default function NoteEditor({
     return () => window.clearTimeout(timer);
   }, [metadata, note, onUpdateNoteMeta]);
 
-  const characterCount = useMemo(() => {
-    const text = getTextFromHtml(content).trim();
-    return text.length;
-  }, [content]);
-
+  const characterCount = useMemo(() => getTextFromHtml(content).trim().length, [content]);
   const folderOptions = useMemo(() => buildFolderOptions(folders), [folders]);
   const currentFolder = folderOptions.find((folder) => folder.id === note?.folder_id) ?? null;
+  const sortedMarkers = useMemo(
+    () => [...audioMarkers].sort((a, b) => Number(a.time_seconds) - Number(b.time_seconds)),
+    [audioMarkers]
+  );
 
   function syncEditorContent() {
     setContent(editorRef.current?.innerHTML ?? '');
@@ -194,7 +288,6 @@ export default function NoteEditor({
   function updateMetaField(field: keyof MusicMetadata, value: string) {
     setMetadata((prev) => ({ ...prev, [field]: value }));
   }
-
 
   function addTag(rawValue?: string) {
     const value = (rawValue ?? tagDraft).trim().replace(/^#/, '');
@@ -223,7 +316,6 @@ export default function NoteEditor({
     onUploadAudio(note, file);
   }
 
-
   function getCurrentContent() {
     return editorRef.current?.innerHTML ?? content;
   }
@@ -250,6 +342,53 @@ export default function NoteEditor({
     onBackToList?.();
   }
 
+  function captureCurrentTime() {
+    const audioId = markerDraft.audio_file_id || audioFiles[0]?.id || '';
+    const audioElement = audioId ? audioRefs.current[audioId] : null;
+    const nextTime = audioElement ? Math.floor(audioElement.currentTime) : 0;
+    setMarkerDraft((prev) => ({ ...prev, audio_file_id: audioId, time_seconds: String(nextTime) }));
+  }
+
+  function seekToMarker(marker: AudioMarker) {
+    const audioId = marker.audio_file_id || audioFiles[0]?.id;
+    if (!audioId) return;
+    const audioElement = audioRefs.current[audioId];
+    if (!audioElement) return;
+    audioElement.currentTime = Number(marker.time_seconds) || 0;
+    audioElement.play().catch(() => undefined);
+  }
+
+  function submitMarker() {
+    if (!note) return;
+    onCreateAudioMarker(markerPayloadFromDraft(note.id, markerDraft));
+    setMarkerDraft({
+      ...EMPTY_MARKER_DRAFT,
+      audio_file_id: markerDraft.audio_file_id || audioFiles[0]?.id || '',
+      time_seconds: markerDraft.time_seconds
+    });
+  }
+
+  function startEditMarker(marker: AudioMarker) {
+    setEditingMarkerId(marker.id);
+    setEditingMarkerDraft(markerDraftFromMarker(marker));
+  }
+
+  function saveEditMarker(marker: AudioMarker) {
+    const payload = markerPayloadFromDraft(marker.note_id, editingMarkerDraft);
+    onUpdateAudioMarker(marker.id, {
+      audio_file_id: payload.audio_file_id,
+      time_seconds: payload.time_seconds,
+      section_name: payload.section_name,
+      marker_type: payload.marker_type,
+      title: payload.title,
+      description: payload.description,
+      chord_progression: payload.chord_progression,
+      bar_count: payload.bar_count,
+      energy: payload.energy
+    });
+    setEditingMarkerId(null);
+  }
+
   if (!note) {
     return (
       <section className="editor empty-editor editor-redesign-shell">
@@ -270,22 +409,13 @@ export default function NoteEditor({
           </div>
           <div className="mobile-action-group">
             <button type="button" className="mobile-nav-button" onClick={handleDone} title="작성 완료">✓</button>
-            <button
-              type="button"
-              className={`mobile-nav-button ${showNoteMenu ? 'active' : ''}`}
-              onClick={() => setShowNoteMenu((current) => !current)}
-              title="메모 메뉴"
-            >
-              ⋮
-            </button>
+            <button type="button" className={`mobile-nav-button ${showNoteMenu ? 'active' : ''}`} onClick={() => setShowNoteMenu((current) => !current)} title="메모 메뉴">⋮</button>
           </div>
         </div>
 
         {showNoteMenu && (
           <div className="editor-card note-more-menu">
-            <button type="button" onClick={() => { onTogglePin(note); setShowNoteMenu(false); }}>
-              {note.is_pinned ? '고정 해제' : '메모 고정'}
-            </button>
+            <button type="button" onClick={() => { onTogglePin(note); setShowNoteMenu(false); }}>{note.is_pinned ? '고정 해제' : '메모 고정'}</button>
             <button type="button" onClick={handleMenuUploadMp3}>MP3 파일 추가</button>
             <button type="button" onClick={handleDone}>저장 후 목록으로</button>
             <button type="button" className="danger" onClick={handleMenuDeleteNote}>메모 삭제</button>
@@ -293,42 +423,24 @@ export default function NoteEditor({
         )}
 
         <div className="editor-card title-card">
-          <input
-            className="title-input title-input-redesign"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="제목을 입력하세요"
-            maxLength={100}
-          />
+          <input className="title-input title-input-redesign" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="제목을 입력하세요" maxLength={100} />
           <span className="title-count">{title.length}/100</span>
         </div>
 
         <div className="editor-card folder-card">
-          <div className="folder-card-left">
-            <span className="folder-card-icon">⌂</span>
-            <span>폴더</span>
-          </div>
+          <div className="folder-card-left"><span className="folder-card-icon">⌂</span><span>폴더</span></div>
           <label className="folder-select-pill">
             <span className="folder-select-dot" style={{ background: currentFolder?.color || '#ff5a5a' }} />
-            <select
-              value={note.folder_id ?? ''}
-              onChange={(event) => onChangeNoteFolder(note.id, event.target.value || null)}
-            >
+            <select value={note.folder_id ?? ''} onChange={(event) => onChangeNoteFolder(note.id, event.target.value || null)}>
               <option value="">Unfiled</option>
-              {folderOptions.map((folder) => (
-                <option key={folder.id} value={folder.id}>
-                  {`${'— '.repeat(folder.depth)}${folder.name}`}
-                </option>
-              ))}
+              {folderOptions.map((folder) => <option key={folder.id} value={folder.id}>{`${'— '.repeat(folder.depth)}${folder.name}`}</option>)}
             </select>
           </label>
         </div>
 
         <div className="editor-card music-meta-card">
           <div className="music-meta-header">
-            <span className="note-type-large-badge" style={{ borderColor: getNoteTypeOption(note.note_type).color, color: getNoteTypeOption(note.note_type).color }}>
-              {getNoteTypeOption(note.note_type).label}
-            </span>
+            <span className="note-type-large-badge" style={{ borderColor: getNoteTypeOption(note.note_type).color, color: getNoteTypeOption(note.note_type).color }}>{getNoteTypeOption(note.note_type).label}</span>
             <small>검색/필터에 쓰이는 음악 분석 데이터</small>
           </div>
           <div className="music-meta-grid">
@@ -343,23 +455,8 @@ export default function NoteEditor({
             <div className="meta-wide tag-editor-block">
               <span>Tags</span>
               <div className="tag-chip-editor">
-                {splitTags(metadata.tags).map((tag) => (
-                  <button type="button" key={tag} onClick={() => removeTag(tag)}>
-                    #{tag.replace(/^#/, '')} ×
-                  </button>
-                ))}
-                <input
-                  value={tagDraft}
-                  onChange={(event) => setTagDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ',') {
-                      event.preventDefault();
-                      addTag();
-                    }
-                  }}
-                  onBlur={() => addTag()}
-                  placeholder="태그 입력 후 Enter"
-                />
+                {splitTags(metadata.tags).map((tag) => <button type="button" key={tag} onClick={() => removeTag(tag)}>#{tag.replace(/^#/, '')} ×</button>)}
+                <input value={tagDraft} onChange={(event) => setTagDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addTag(); } }} onBlur={() => addTag()} placeholder="태그 입력 후 Enter" />
               </div>
             </div>
             <label className="meta-wide">Source<input value={metadata.source ?? ''} onChange={(event) => updateMetaField('source', event.target.value)} placeholder="직접 분석 / 공식 자료 / 추정" /></label>
@@ -368,50 +465,8 @@ export default function NoteEditor({
 
         <div className="editor-card controls-card">
           <div className="controls-grid">
-            <div className="control-block">
-              <span className="control-label">텍스트 크기</span>
-              <div className="size-chip-row">
-                {FONT_SIZE_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`size-chip size-${option.value} ${fontSize === option.value ? 'active' : ''}`}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => applyFontSize(option.value)}
-                    title={option.title}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="control-block">
-              <span className="control-label">텍스트 색상</span>
-              <div className="color-swatch-row">
-                {TEXT_COLOR_PRESETS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    className={`color-swatch ${textColor === color ? 'active' : ''}`}
-                    style={{ background: color }}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => applyColor(color)}
-                    aria-label={`텍스트 색상 ${color}`}
-                  >
-                    {textColor === color ? '✓' : ''}
-                  </button>
-                ))}
-                <label className="color-swatch custom-color-button" aria-label="사용자 지정 색상">
-                  +
-                  <input
-                    type="color"
-                    value={textColor}
-                    onChange={(event) => applyColor(event.target.value)}
-                  />
-                </label>
-              </div>
-            </div>
+            <div className="control-block"><span className="control-label">텍스트 크기</span><div className="size-chip-row">{FONT_SIZE_OPTIONS.map((option) => <button key={option.value} type="button" className={`size-chip size-${option.value} ${fontSize === option.value ? 'active' : ''}`} onMouseDown={(event) => event.preventDefault()} onClick={() => applyFontSize(option.value)} title={option.title}>{option.label}</button>)}</div></div>
+            <div className="control-block"><span className="control-label">텍스트 색상</span><div className="color-swatch-row">{TEXT_COLOR_PRESETS.map((color) => <button key={color} type="button" className={`color-swatch ${textColor === color ? 'active' : ''}`} style={{ background: color }} onMouseDown={(event) => event.preventDefault()} onClick={() => applyColor(color)} aria-label={`텍스트 색상 ${color}`}>{textColor === color ? '✓' : ''}</button>)}<label className="color-swatch custom-color-button" aria-label="사용자 지정 색상">+<input type="color" value={textColor} onChange={(event) => applyColor(event.target.value)} /></label></div></div>
           </div>
         </div>
 
@@ -431,65 +486,103 @@ export default function NoteEditor({
         </div>
 
         <div className="editor-card content-card">
-          <div
-            ref={editorRef}
-            className="content-editor content-editor-redesign"
-            contentEditable
-            role="textbox"
-            aria-label="Note content"
-            data-placeholder="메모를 입력하세요..."
-            onInput={syncEditorContent}
-            onBlur={syncEditorContent}
-            suppressContentEditableWarning
-          />
+          <div ref={editorRef} className="content-editor content-editor-redesign" contentEditable role="textbox" aria-label="Note content" data-placeholder="메모를 입력하세요..." onInput={syncEditorContent} onBlur={syncEditorContent} suppressContentEditableWarning />
           <span className="content-count">{characterCount.toLocaleString()}자 · 무제한</span>
         </div>
 
         <section className="editor-card audio-panel audio-panel-redesign">
           <div className="audio-panel-header audio-panel-header-redesign">
-            <div>
-              <strong>MP3 파일</strong>
-              <span>전체 {audioFiles.length}개</span>
-            </div>
-            <button type="button" className="upload-mp3-inline" onClick={() => fileInputRef.current?.click()}>
-              ＋ MP3 파일 추가
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="audio/mpeg,audio/mp3,.mp3"
-              onChange={handleFileChange}
-              hidden
-            />
+            <div><strong>MP3 파일</strong><span>전체 {audioFiles.length}개</span></div>
+            <button type="button" className="upload-mp3-inline" onClick={() => fileInputRef.current?.click()}>＋ MP3 파일 추가</button>
+            <input ref={fileInputRef} type="file" accept="audio/mpeg,audio/mp3,.mp3" onChange={handleFileChange} hidden />
           </div>
 
           {audioUploadStatus && <p className="audio-status">{audioUploadStatus}</p>}
 
           {audioFiles.length === 0 ? (
-            <div className="audio-empty">이 메모에 저장된 MP3가 아직 없습니다.</div>
+            <div className="audio-empty">이 메모에 저장된 MP3가 아직 없습니다. 타임라인 분석을 시작하려면 먼저 MP3를 업로드하세요.</div>
           ) : (
             <div className="audio-list audio-list-redesign">
               {audioFiles.map((file) => (
                 <article className="audio-row audio-row-redesign" key={file.id}>
                   <div className="audio-file-icon">♫</div>
-                  <div className="audio-info">
-                    <strong>{file.file_name}</strong>
-                    <span>{[formatBytes(file.file_size), formatDate(file.created_at)].filter(Boolean).join(' • ')}</span>
-                  </div>
+                  <div className="audio-info"><strong>{file.file_name}</strong><span>{[formatBytes(file.file_size), formatDate(file.created_at)].filter(Boolean).join(' • ')}</span></div>
                   <div className="audio-row-actions">
-                    {file.signed_url ? (
-                      <audio controls src={file.signed_url} />
-                    ) : (
-                      <span className="muted">Audio URL loading...</span>
-                    )}
-                    <button type="button" className="ghost-button danger" onClick={() => onDeleteAudio(file)}>
-                      삭제
-                    </button>
+                    {file.signed_url ? <audio ref={(el) => { audioRefs.current[file.id] = el; }} controls src={file.signed_url} /> : <span className="muted">Audio URL loading...</span>}
+                    <button type="button" className="ghost-button danger" onClick={() => onDeleteAudio(file)}>삭제</button>
                   </div>
                 </article>
               ))}
             </div>
           )}
+        </section>
+
+        <section className="editor-card timeline-panel">
+          <div className="timeline-header">
+            <div><strong>Audio Timeline Analysis</strong><span>송폼, 코드, 리듬, 편곡 포인트를 MP3 시간에 연결합니다.</span></div>
+            <span className="timeline-count">{sortedMarkers.length} markers</span>
+          </div>
+
+          <div className="marker-create-card">
+            <div className="marker-create-top">
+              <label>MP3<select value={markerDraft.audio_file_id} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, audio_file_id: event.target.value }))}><option value="">No audio selected</option>{audioFiles.map((file) => <option key={file.id} value={file.id}>{file.file_name}</option>)}</select></label>
+              <label>Time<input type="number" min="0" value={markerDraft.time_seconds} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, time_seconds: event.target.value }))} /></label>
+              <button type="button" onClick={captureCurrentTime} disabled={audioFiles.length === 0}>현재 위치 가져오기</button>
+            </div>
+            <div className="marker-grid">
+              <label>Section<input value={markerDraft.section_name} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, section_name: event.target.value }))} placeholder="Chorus" /></label>
+              <label>Type<select value={markerDraft.marker_type} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, marker_type: event.target.value }))}>{MARKER_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+              <label>Bars<input type="number" min="0" value={markerDraft.bar_count} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, bar_count: event.target.value }))} placeholder="8" /></label>
+              <label>Energy<input type="number" min="0" max="100" value={markerDraft.energy} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, energy: event.target.value }))} placeholder="90" /></label>
+              <label className="marker-wide">Title<input value={markerDraft.title} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, title: event.target.value }))} placeholder="Chorus drop" /></label>
+              <label className="marker-wide">Chord<input value={markerDraft.chord_progression} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, chord_progression: event.target.value }))} placeholder="Bmaj9 - F#/A# - G#m7 - Emaj9" /></label>
+              <label className="marker-wide">Description<textarea value={markerDraft.description} onChange={(event) => setMarkerDraft((prev) => ({ ...prev, description: event.target.value }))} placeholder="Full drum groove, bright synth hook, vocal stack enters." /></label>
+            </div>
+            <button type="button" className="add-marker-button" onClick={submitMarker} disabled={!note}>＋ 현재 위치에 마커 추가</button>
+          </div>
+
+          <div className="marker-list">
+            {sortedMarkers.length === 0 ? (
+              <div className="audio-empty">아직 타임라인 마커가 없습니다. MP3를 재생하고 현재 위치를 가져와 첫 마커를 추가하세요.</div>
+            ) : (
+              sortedMarkers.map((marker) => {
+                const isEditing = editingMarkerId === marker.id;
+                return (
+                  <article className="marker-row" key={marker.id}>
+                    <button type="button" className="marker-time" onClick={() => seekToMarker(marker)}>{formatTime(marker.time_seconds)}</button>
+                    {isEditing ? (
+                      <div className="marker-edit-panel">
+                        <div className="marker-grid">
+                          <label>Time<input type="number" min="0" value={editingMarkerDraft.time_seconds} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, time_seconds: event.target.value }))} /></label>
+                          <label>Section<input value={editingMarkerDraft.section_name} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, section_name: event.target.value }))} /></label>
+                          <label>Type<select value={editingMarkerDraft.marker_type} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, marker_type: event.target.value }))}>{MARKER_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+                          <label>Energy<input type="number" min="0" max="100" value={editingMarkerDraft.energy} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, energy: event.target.value }))} /></label>
+                          <label className="marker-wide">Title<input value={editingMarkerDraft.title} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, title: event.target.value }))} /></label>
+                          <label className="marker-wide">Chord<input value={editingMarkerDraft.chord_progression} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, chord_progression: event.target.value }))} /></label>
+                          <label className="marker-wide">Description<textarea value={editingMarkerDraft.description} onChange={(event) => setEditingMarkerDraft((prev) => ({ ...prev, description: event.target.value }))} /></label>
+                        </div>
+                        <div className="marker-actions"><button type="button" onClick={() => saveEditMarker(marker)}>Save</button><button type="button" className="ghost-button" onClick={() => setEditingMarkerId(null)}>Cancel</button></div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="marker-main">
+                          <div className="marker-title-line"><strong>{marker.title || marker.section_name || marker.marker_type}</strong><span>{marker.marker_type}</span></div>
+                          <p>{marker.description || 'No description yet'}</p>
+                          <div className="marker-meta-line">
+                            {marker.section_name && <span>{marker.section_name}</span>}
+                            {marker.bar_count != null && <span>{marker.bar_count} bars</span>}
+                            {marker.energy != null && <span>Energy {marker.energy}</span>}
+                            {marker.chord_progression && <span>{marker.chord_progression}</span>}
+                          </div>
+                        </div>
+                        <div className="marker-actions"><button type="button" onClick={() => startEditMarker(marker)}>Edit</button><button type="button" className="danger ghost-button" onClick={() => onDeleteAudioMarker(marker)}>Delete</button></div>
+                      </>
+                    )}
+                  </article>
+                );
+              })
+            )}
+          </div>
         </section>
       </div>
     </section>
