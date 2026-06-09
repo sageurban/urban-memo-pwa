@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Folder, Note } from '../types/note';
 
 type FolderFilter = 'all' | 'unfiled' | string;
@@ -23,10 +23,10 @@ type NoteListProps = {
 };
 
 type FolderNode = Folder & { children: FolderNode[]; depth: number };
-
 type FolderOption = Folder & { depth: number };
 
 const COLLAPSED_STORAGE_KEY = 'urban-memo-collapsed-folders';
+const DEFAULT_FOLDER_COLOR = '#f4f0e8';
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('ko-KR', {
@@ -135,13 +135,16 @@ export default function NoteList({
   onDeleteNote
 }: NoteListProps) {
   const [newFolderName, setNewFolderName] = useState('');
-  const [newFolderColor, setNewFolderColor] = useState('#f4f0e8');
+  const [newFolderColor, setNewFolderColor] = useState(DEFAULT_FOLDER_COLOR);
   const [newFolderParentId, setNewFolderParentId] = useState('');
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(() => loadCollapsedFolders());
+  const [openFolderMenuId, setOpenFolderMenuId] = useState<string | null>(null);
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
   const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState('');
+  const createFormRef = useRef<HTMLFormElement | null>(null);
 
   const folderTree = useMemo(() => buildFolderTree(folders), [folders]);
   const folderOptions = useMemo(() => flattenFolderTree(folderTree), [folderTree]);
@@ -154,6 +157,14 @@ export default function NoteList({
       return next;
     });
   }, [folders]);
+
+  useEffect(() => {
+    if (showCreateFolder) {
+      window.requestAnimationFrame(() => {
+        createFormRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    }
+  }, [showCreateFolder]);
 
   const noteCountByFolder = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -171,11 +182,16 @@ export default function NoteList({
     if (!name) return;
     onCreateFolder(name, newFolderColor, newFolderParentId || null);
     setNewFolderName('');
+    setNewFolderParentId('');
+    setNewFolderColor(DEFAULT_FOLDER_COLOR);
+    setShowCreateFolder(false);
   }
 
   function handlePrepareChildFolder(folder: Folder) {
     setNewFolderParentId(folder.id);
-    setNewFolderColor(folder.color || '#f4f0e8');
+    setNewFolderColor(folder.color || DEFAULT_FOLDER_COLOR);
+    setShowCreateFolder(true);
+    setOpenFolderMenuId(null);
   }
 
   function updateCollapsedFolders(next: Set<string>) {
@@ -183,9 +199,10 @@ export default function NoteList({
     saveCollapsedFolders(next);
   }
 
-  function collapseFolder(folder: Folder) {
+  function toggleFolderCollapse(folder: Folder) {
     const next = new Set(collapsedFolderIds);
-    next.add(folder.id);
+    if (next.has(folder.id)) next.delete(folder.id);
+    else next.add(folder.id);
     updateCollapsedFolders(next);
   }
 
@@ -222,6 +239,7 @@ export default function NoteList({
     setEditingFolderId(folder.id);
     setEditingFolderName(folder.name);
     setMovingFolderId(null);
+    setOpenFolderMenuId(null);
   }
 
   function cancelRenameFolder() {
@@ -245,213 +263,271 @@ export default function NoteList({
     setMovingNoteId(null);
   }
 
+  function renderSystemFolder(id: FolderFilter, label: string, count: number, tone: string) {
+    return (
+      <button
+        type="button"
+        className={`folder-system-row ${selectedFolderId === id ? 'active' : ''}`}
+        onClick={() => onSelectFolder(id)}
+      >
+        <div className="folder-system-main">
+          <span className="folder-system-dot" style={{ background: tone }} />
+          <strong>{label}</strong>
+        </div>
+        <span className="folder-count-badge">{count}</span>
+      </button>
+    );
+  }
+
   function renderFolderNode(node: FolderNode) {
     const isCollapsed = collapsedFolderIds.has(node.id);
     const hasChildren = node.children.length > 0;
     const moveOptions = getFolderMoveOptions(node);
+    const menuOpen = openFolderMenuId === node.id;
+    const isEditing = editingFolderId === node.id;
+    const isMoving = movingFolderId === node.id;
 
     return (
       <div className="folder-node" key={node.id}>
-        <div className="folder-row-wrap" style={{ paddingLeft: `${node.depth * 14}px` }}>
-          <button
-            type="button"
-            className="folder-collapse"
-            onClick={() => (isCollapsed ? expandFolderAndDescendants(node) : collapseFolder(node))}
-            disabled={!hasChildren}
-            title={hasChildren ? (isCollapsed ? '하위 폴더 모두 열기' : '하위 폴더 접기') : '하위 폴더 없음'}
-            aria-label={hasChildren ? (isCollapsed ? '하위 폴더 모두 열기' : '하위 폴더 접기') : '하위 폴더 없음'}
-          >
-            {hasChildren ? (isCollapsed ? '▸' : '▾') : '•'}
+        <div className="folder-item-shell" style={{ marginLeft: `${node.depth * 18}px` }}>
+          <div className={`folder-item-card ${selectedFolderId === node.id ? 'active' : ''}`}>
+            <div className="folder-item-row">
+              <button
+                type="button"
+                className={`folder-chevron ${hasChildren ? '' : 'ghost'}`}
+                onClick={() => hasChildren && toggleFolderCollapse(node)}
+                disabled={!hasChildren}
+                aria-label={hasChildren ? (isCollapsed ? '폴더 펼치기' : '폴더 접기') : '하위 폴더 없음'}
+              >
+                {hasChildren ? (isCollapsed ? '▸' : '▾') : '•'}
+              </button>
+
+              {isEditing ? (
+                <form className="folder-inline-edit" onSubmit={(event) => submitRenameFolder(event, node)}>
+                  <span className="folder-color-dot" style={{ background: node.color || DEFAULT_FOLDER_COLOR }} />
+                  <input
+                    value={editingFolderName}
+                    onChange={(event) => setEditingFolderName(event.target.value)}
+                    autoFocus
+                    maxLength={40}
+                  />
+                  <button type="submit" className="icon-circle success">✓</button>
+                  <button type="button" className="icon-circle" onClick={cancelRenameFolder}>×</button>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  className="folder-main-button"
+                  onClick={() => onSelectFolder(node.id)}
+                >
+                  <div className="folder-main-meta">
+                    <span className="folder-color-dot" style={{ background: node.color || DEFAULT_FOLDER_COLOR }} />
+                    <span className="folder-main-label">{node.name}</span>
+                  </div>
+                  <span className="folder-count-badge">{noteCountByFolder[node.id] ?? 0}</span>
+                </button>
+              )}
+
+              {!isEditing && (
+                <button
+                  type="button"
+                  className={`icon-circle menu-trigger ${menuOpen ? 'active' : ''}`}
+                  onClick={() => {
+                    setOpenFolderMenuId((current) => (current === node.id ? null : node.id));
+                    setMovingFolderId(null);
+                    setEditingFolderId(null);
+                  }}
+                  aria-label="폴더 메뉴 열기"
+                >
+                  ⋮
+                </button>
+              )}
+            </div>
+
+            {menuOpen && !isEditing && !isMoving && (
+              <div className="folder-menu-panel">
+                <button type="button" onClick={() => startRenameFolder(node)}>이름 변경</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMovingFolderId(node.id);
+                    setOpenFolderMenuId(null);
+                  }}
+                >
+                  이동
+                </button>
+                <label className="folder-color-menu">
+                  <span>색상 변경</span>
+                  <input
+                    type="color"
+                    value={node.color || DEFAULT_FOLDER_COLOR}
+                    onChange={(event) => onUpdateFolder(node, { color: event.target.value })}
+                    title="폴더 색상 변경"
+                  />
+                </label>
+                <button type="button" onClick={() => handlePrepareChildFolder(node)}>하위 폴더 추가</button>
+                {hasChildren && isCollapsed && (
+                  <button type="button" onClick={() => expandFolderAndDescendants(node)}>전체 열기</button>
+                )}
+                <button type="button" className="danger" onClick={() => onDeleteFolder(node)}>삭제</button>
+              </div>
+            )}
+
+            {isMoving && (
+              <div className="folder-inline-panel">
+                <label>
+                  이동할 위치
+                  <select value={node.parent_id ?? ''} onChange={(event) => handleMoveFolder(node, event.target.value)}>
+                    <option value="">최상위 폴더</option>
+                    {moveOptions.map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        {`${'— '.repeat(folder.depth)}${folder.name}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="button" className="panel-cancel" onClick={() => setMovingFolderId(null)}>취소</button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {!isCollapsed && hasChildren && (
+          <div className="folder-children">{node.children.map(renderFolderNode)}</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <aside className="sidebar sidebar-redesign">
+      <header className="sidebar-header folder-page-header">
+        <div>
+          <div className="folder-page-title-row">
+            <h1>폴더</h1>
+            <span className="header-count-pill">{folders.length}</span>
+          </div>
+          <p>폴더를 정리하고 메모를 계층별로 관리하세요.</p>
+        </div>
+        <div className="header-actions">
+          <button type="button" className="header-icon-button" title="메모 검색">
+            ⌕
           </button>
-
           <button
             type="button"
-            className={`folder-row ${selectedFolderId === node.id ? 'active' : ''}`}
-            onClick={() => onSelectFolder(node.id)}
-          >
-            <span className="folder-name" style={{ color: node.color || '#f4f0e8' }}>
-              <i style={{ background: node.color || '#f4f0e8' }} />
-              {node.name}
-            </span>
-            <em>{noteCountByFolder[node.id] ?? 0}</em>
-          </button>
-
-          <input
-            className="folder-color-input"
-            type="color"
-            value={node.color || '#f4f0e8'}
-            onChange={(event) => onUpdateFolder(node, { color: event.target.value })}
-            title="Change folder color"
-          />
-
-          <button
-            type="button"
-            className="folder-child"
-            onClick={() => handlePrepareChildFolder(node)}
-            title="Create child folder here"
+            className="header-icon-button primary"
+            title="새 폴더 추가"
+            onClick={() => setShowCreateFolder((current) => !current)}
           >
             +
           </button>
+        </div>
+      </header>
 
-          <button
-            type="button"
-            className="folder-rename"
-            onClick={() => startRenameFolder(node)}
-            title="Rename folder"
-          >
-            Rename
-          </button>
+      <div className="folder-tip-banner">
+        <span>✦ 폴더 오른쪽 더보기 메뉴에서 이름 변경, 이동, 색상 변경을 할 수 있어요.</span>
+      </div>
 
-          <button
-            type="button"
-            className="folder-move"
-            onClick={() => {
-              setMovingFolderId((current) => (current === node.id ? null : node.id));
-              setEditingFolderId(null);
-            }}
-            title="Move folder"
-          >
-            Move
-          </button>
-
-          <button
-            type="button"
-            className="folder-delete"
-            onClick={() => onDeleteFolder(node)}
-            title="Delete folder"
-          >
-            ×
-          </button>
+      <section className="folder-panel folder-panel-redesign" aria-label="Folders">
+        <div className="folder-panel-header folder-panel-header-redesign">
+          <div>
+            <strong>Folders</strong>
+            <span>{folders.length}</span>
+          </div>
+          <div className="folder-tree-controls">
+            <button type="button" onClick={collapseAllFolders} disabled={folders.length === 0}>전체 접기</button>
+            <button type="button" onClick={expandAllFolders} disabled={folders.length === 0}>전체 열기</button>
+          </div>
         </div>
 
-        {editingFolderId === node.id && (
-          <form className="folder-rename-panel" style={{ marginLeft: `${node.depth * 14 + 28}px` }} onSubmit={(event) => submitRenameFolder(event, node)}>
+        <div className="folder-tree folder-tree-redesign">
+          {renderSystemFolder('all', 'All Notes', allNotes.length, '#ff5c5c')}
+          {renderSystemFolder('unfiled', 'Unfiled', noteCountByFolder.unfiled ?? 0, '#bcbcbc')}
+          {folderTree.map(renderFolderNode)}
+        </div>
+
+        <button
+          type="button"
+          className="new-folder-trigger"
+          onClick={() => {
+            setShowCreateFolder((current) => !current);
+            setNewFolderParentId('');
+          }}
+        >
+          <span>＋</span>
+          <strong>새 폴더</strong>
+        </button>
+
+        {showCreateFolder && (
+          <form className="folder-create-card" onSubmit={handleCreateFolder} ref={createFormRef}>
+            <div className="folder-create-card-header">
+              <strong>폴더 추가</strong>
+              <span>새 폴더를 만들고 위치를 지정하세요.</span>
+            </div>
+
             <label>
-              Rename
+              폴더 이름
               <input
-                value={editingFolderName}
-                onChange={(event) => setEditingFolderName(event.target.value)}
+                value={newFolderName}
+                onChange={(event) => setNewFolderName(event.target.value)}
+                placeholder="폴더 이름을 입력하세요"
                 maxLength={40}
-                autoFocus
               />
             </label>
-            <button type="submit">Save</button>
-            <button type="button" onClick={cancelRenameFolder}>
-              Cancel
-            </button>
-          </form>
-        )}
 
-        {movingFolderId === node.id && (
-          <div className="folder-move-panel" style={{ marginLeft: `${node.depth * 14 + 28}px` }}>
+            <div className="folder-create-meta-row">
+              <label>
+                폴더 색상
+                <div className="folder-color-picker-row">
+                  <input
+                    className="folder-create-color"
+                    type="color"
+                    value={newFolderColor}
+                    onChange={(event) => setNewFolderColor(event.target.value)}
+                    title="폴더 색상"
+                  />
+                  <span>{newFolderColor}</span>
+                </div>
+              </label>
+            </div>
+
             <label>
-              Move to
-              <select value={node.parent_id ?? ''} onChange={(event) => handleMoveFolder(node, event.target.value)}>
-                <option value="">Top level</option>
-                {moveOptions.map((folder) => (
+              상위 폴더
+              <select value={newFolderParentId} onChange={(event) => setNewFolderParentId(event.target.value)}>
+                <option value="">상위 폴더 없음</option>
+                {folderOptions.map((folder) => (
                   <option key={folder.id} value={folder.id}>
                     {`${'— '.repeat(folder.depth)}${folder.name}`}
                   </option>
                 ))}
               </select>
             </label>
-            <button type="button" onClick={() => setMovingFolderId(null)}>
-              Cancel
-            </button>
-          </div>
+
+            <div className="folder-create-actions">
+              <button type="button" className="secondary-button" onClick={() => setShowCreateFolder(false)}>취소</button>
+              <button type="submit" className="create-button">＋ 추가</button>
+            </div>
+          </form>
         )}
-
-        {!isCollapsed && node.children.map(renderFolderNode)}
-      </div>
-    );
-  }
-
-  return (
-    <aside className="sidebar">
-      <header className="sidebar-header">
-        <div>
-          <h1>Urban Memo</h1>
-          <p>{allNotes.length} notes</p>
-        </div>
-        <button type="button" className="new-button" onClick={onCreateNote}>
-          +
-        </button>
-      </header>
-
-      <section className="folder-panel" aria-label="Folders">
-        <div className="folder-panel-header">
-          <div>
-            <strong>Folders</strong>
-            <span>{folders.length}</span>
-          </div>
-          <div className="folder-tree-controls">
-            <button type="button" onClick={collapseAllFolders} disabled={folders.length === 0}>
-              접기
-            </button>
-            <button type="button" onClick={expandAllFolders} disabled={folders.length === 0}>
-              열기
-            </button>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className={`folder-row ${selectedFolderId === 'all' ? 'active' : ''}`}
-          onClick={() => onSelectFolder('all')}
-        >
-          <span>All Notes</span>
-          <em>{allNotes.length}</em>
-        </button>
-
-        <button
-          type="button"
-          className={`folder-row ${selectedFolderId === 'unfiled' ? 'active' : ''}`}
-          onClick={() => onSelectFolder('unfiled')}
-        >
-          <span>Unfiled</span>
-          <em>{noteCountByFolder.unfiled ?? 0}</em>
-        </button>
-
-        <div className="folder-tree">{folderTree.map(renderFolderNode)}</div>
-
-        <form className="folder-form folder-form-rich" onSubmit={handleCreateFolder}>
-          <input
-            value={newFolderName}
-            onChange={(event) => setNewFolderName(event.target.value)}
-            placeholder="New folder"
-            maxLength={40}
-          />
-          <input
-            className="folder-create-color"
-            type="color"
-            value={newFolderColor}
-            onChange={(event) => setNewFolderColor(event.target.value)}
-            title="Folder color"
-          />
-          <select value={newFolderParentId} onChange={(event) => setNewFolderParentId(event.target.value)}>
-            <option value="">No parent</option>
-            {folderOptions.map((folder) => (
-              <option key={folder.id} value={folder.id}>
-                {`${'— '.repeat(folder.depth)}${folder.name}`}
-              </option>
-            ))}
-          </select>
-          <button type="submit">Add</button>
-        </form>
       </section>
 
       <input
-        className="search-input"
+        className="search-input search-input-redesign"
         value={searchTerm}
         onChange={(event) => onSearchTermChange(event.target.value)}
-        placeholder="Search notes"
+        placeholder="메모 검색"
       />
+
+      <div className="sidebar-subheader">
+        <strong>메모</strong>
+        <button type="button" className="new-note-button" onClick={onCreateNote}>새 메모</button>
+      </div>
 
       <div className="note-list">
         {notes.length === 0 ? (
           <div className="empty-state">
             <strong>아직 메모가 없어요.</strong>
-            <span>+ 버튼으로 첫 메모를 만들어보세요.</span>
+            <span>새 메모를 만들어 폴더에 정리해보세요.</span>
           </div>
         ) : (
           notes.map((note) => {
@@ -471,18 +547,9 @@ export default function NoteList({
                   <span>{formatDate(note.updated_at)}</span>
                 </div>
                 <div className="note-row-actions" onClick={(event) => event.stopPropagation()}>
-                  <button type="button" onClick={() => onTogglePin(note)}>
-                    {note.is_pinned ? 'Unpin' : 'Pin'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMovingNoteId((current) => (current === note.id ? null : note.id))}
-                  >
-                    Move
-                  </button>
-                  <button type="button" className="danger" onClick={() => onDeleteNote(note)}>
-                    Delete
-                  </button>
+                  <button type="button" onClick={() => onTogglePin(note)}>{note.is_pinned ? 'Unpin' : 'Pin'}</button>
+                  <button type="button" onClick={() => setMovingNoteId((current) => (current === note.id ? null : note.id))}>Move</button>
+                  <button type="button" className="danger" onClick={() => onDeleteNote(note)}>Delete</button>
                 </div>
 
                 {movingNoteId === note.id && (
@@ -498,9 +565,7 @@ export default function NoteList({
                         ))}
                       </select>
                     </label>
-                    <button type="button" onClick={() => setMovingNoteId(null)}>
-                      Cancel
-                    </button>
+                    <button type="button" onClick={() => setMovingNoteId(null)}>Cancel</button>
                   </div>
                 )}
               </article>
