@@ -5,19 +5,25 @@ type FolderFilter = 'all' | 'unfiled' | string;
 
 type NoteListProps = {
   notes: Note[];
+  allNotes: Note[];
   folders: Folder[];
   selectedNoteId: string | null;
   selectedFolderId: FolderFilter;
   searchTerm: string;
   onSearchTermChange: (value: string) => void;
   onSelectFolder: (folderId: FolderFilter) => void;
-  onCreateFolder: (name: string) => void;
+  onCreateFolder: (name: string, color: string, parentId: string | null) => void;
+  onUpdateFolder: (folder: Folder, values: Partial<Pick<Folder, 'name' | 'color' | 'parent_id'>>) => void;
   onDeleteFolder: (folder: Folder) => void;
   onSelectNote: (note: Note) => void;
   onCreateNote: () => void;
   onTogglePin: (note: Note) => void;
   onDeleteNote: (note: Note) => void;
 };
+
+type FolderNode = Folder & { children: FolderNode[]; depth: number };
+
+type FolderOption = Folder & { depth: number };
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('ko-KR', {
@@ -28,8 +34,62 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function stripHtml(value: string) {
+  if (!value) return '';
+  const element = document.createElement('div');
+  element.innerHTML = value;
+  return element.textContent ?? '';
+}
+
+function buildFolderTree(folders: Folder[]): FolderNode[] {
+  const byParent = new Map<string | null, Folder[]>();
+
+  folders.forEach((folder) => {
+    const key = folder.parent_id ?? null;
+    const list = byParent.get(key) ?? [];
+    list.push(folder);
+    byParent.set(key, list);
+  });
+
+  byParent.forEach((list) => {
+    list.sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+  function makeNodes(parentId: string | null, depth: number): FolderNode[] {
+    return (byParent.get(parentId) ?? []).map((folder) => ({
+      ...folder,
+      depth,
+      children: makeNodes(folder.id, depth + 1)
+    }));
+  }
+
+  return makeNodes(null, 0);
+}
+
+function flattenFolderTree(nodes: FolderNode[]): FolderOption[] {
+  return nodes.flatMap((node) => [node, ...flattenFolderTree(node.children)]);
+}
+
+function collectDescendantIds(folderId: string, folders: Folder[]) {
+  const ids = new Set<string>([folderId]);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    folders.forEach((folder) => {
+      if (folder.parent_id && ids.has(folder.parent_id) && !ids.has(folder.id)) {
+        ids.add(folder.id);
+        changed = true;
+      }
+    });
+  }
+
+  return ids;
+}
+
 export default function NoteList({
   notes,
+  allNotes,
   folders,
   selectedNoteId,
   selectedFolderId,
@@ -37,6 +97,7 @@ export default function NoteList({
   onSearchTermChange,
   onSelectFolder,
   onCreateFolder,
+  onUpdateFolder,
   onDeleteFolder,
   onSelectNote,
   onCreateNote,
@@ -44,23 +105,77 @@ export default function NoteList({
   onDeleteNote
 }: NoteListProps) {
   const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderColor, setNewFolderColor] = useState('#f4f0e8');
+  const [newFolderParentId, setNewFolderParentId] = useState('');
+
+  const folderTree = useMemo(() => buildFolderTree(folders), [folders]);
+  const folderOptions = useMemo(() => flattenFolderTree(folderTree), [folderTree]);
 
   const noteCountByFolder = useMemo(() => {
-    return notes.reduce<Record<string, number>>((acc, note) => {
-      const key = note.folder_id ?? 'unfiled';
-      acc[key] = (acc[key] ?? 0) + 1;
-      return acc;
-    }, {});
-  }, [notes]);
-
-  const unfiledCount = noteCountByFolder.unfiled ?? 0;
+    const counts: Record<string, number> = {};
+    folders.forEach((folder) => {
+      const ids = collectDescendantIds(folder.id, folders);
+      counts[folder.id] = allNotes.filter((note) => note.folder_id && ids.has(note.folder_id)).length;
+    });
+    counts.unfiled = allNotes.filter((note) => note.folder_id === null).length;
+    return counts;
+  }, [allNotes, folders]);
 
   function handleCreateFolder(event: FormEvent) {
     event.preventDefault();
     const name = newFolderName.trim();
     if (!name) return;
-    onCreateFolder(name);
+    onCreateFolder(name, newFolderColor, newFolderParentId || null);
     setNewFolderName('');
+  }
+
+  function handlePrepareChildFolder(folder: Folder) {
+    setNewFolderParentId(folder.id);
+    setNewFolderColor(folder.color || '#f4f0e8');
+  }
+
+  function renderFolderNode(node: FolderNode) {
+    return (
+      <div className="folder-node" key={node.id}>
+        <div className="folder-row-wrap" style={{ paddingLeft: `${node.depth * 14}px` }}>
+          <button
+            type="button"
+            className={`folder-row ${selectedFolderId === node.id ? 'active' : ''}`}
+            onClick={() => onSelectFolder(node.id)}
+          >
+            <span className="folder-name" style={{ color: node.color || '#f4f0e8' }}>
+              <i style={{ background: node.color || '#f4f0e8' }} />
+              {node.name}
+            </span>
+            <em>{noteCountByFolder[node.id] ?? 0}</em>
+          </button>
+          <input
+            className="folder-color-input"
+            type="color"
+            value={node.color || '#f4f0e8'}
+            onChange={(event) => onUpdateFolder(node, { color: event.target.value })}
+            title="Change folder color"
+          />
+          <button
+            type="button"
+            className="folder-child"
+            onClick={() => handlePrepareChildFolder(node)}
+            title="Create child folder here"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="folder-delete"
+            onClick={() => onDeleteFolder(node)}
+            title="Delete folder"
+          >
+            ×
+          </button>
+        </div>
+        {node.children.map(renderFolderNode)}
+      </div>
+    );
   }
 
   return (
@@ -68,7 +183,7 @@ export default function NoteList({
       <header className="sidebar-header">
         <div>
           <h1>Urban Memo</h1>
-          <p>{notes.length} notes</p>
+          <p>{allNotes.length} notes</p>
         </div>
         <button type="button" className="new-button" onClick={onCreateNote}>
           +
@@ -87,7 +202,7 @@ export default function NoteList({
           onClick={() => onSelectFolder('all')}
         >
           <span>All Notes</span>
-          <em>{notes.length}</em>
+          <em>{allNotes.length}</em>
         </button>
 
         <button
@@ -96,37 +211,33 @@ export default function NoteList({
           onClick={() => onSelectFolder('unfiled')}
         >
           <span>Unfiled</span>
-          <em>{unfiledCount}</em>
+          <em>{noteCountByFolder.unfiled ?? 0}</em>
         </button>
 
-        {folders.map((folder) => (
-          <div className="folder-row-wrap" key={folder.id}>
-            <button
-              type="button"
-              className={`folder-row ${selectedFolderId === folder.id ? 'active' : ''}`}
-              onClick={() => onSelectFolder(folder.id)}
-            >
-              <span>{folder.name}</span>
-              <em>{noteCountByFolder[folder.id] ?? 0}</em>
-            </button>
-            <button
-              type="button"
-              className="folder-delete"
-              onClick={() => onDeleteFolder(folder)}
-              title="Delete folder"
-            >
-              ×
-            </button>
-          </div>
-        ))}
+        <div className="folder-tree">{folderTree.map(renderFolderNode)}</div>
 
-        <form className="folder-form" onSubmit={handleCreateFolder}>
+        <form className="folder-form folder-form-rich" onSubmit={handleCreateFolder}>
           <input
             value={newFolderName}
             onChange={(event) => setNewFolderName(event.target.value)}
             placeholder="New folder"
             maxLength={40}
           />
+          <input
+            className="folder-create-color"
+            type="color"
+            value={newFolderColor}
+            onChange={(event) => setNewFolderColor(event.target.value)}
+            title="Folder color"
+          />
+          <select value={newFolderParentId} onChange={(event) => setNewFolderParentId(event.target.value)}>
+            <option value="">No parent</option>
+            {folderOptions.map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {`${'— '.repeat(folder.depth)}${folder.name}`}
+              </option>
+            ))}
+          </select>
           <button type="submit">Add</button>
         </form>
       </section>
@@ -145,30 +256,33 @@ export default function NoteList({
             <span>+ 버튼으로 첫 메모를 만들어보세요.</span>
           </div>
         ) : (
-          notes.map((note) => (
-            <article
-              key={note.id}
-              className={`note-row ${selectedNoteId === note.id ? 'selected' : ''}`}
-              onClick={() => onSelectNote(note)}
-            >
-              <div className="note-row-main">
-                <div className="note-row-title">
-                  {note.is_pinned && <span className="pin-badge">Pinned</span>}
-                  <strong>{note.title || 'Untitled'}</strong>
+          notes.map((note) => {
+            const preview = stripHtml(note.content);
+            return (
+              <article
+                key={note.id}
+                className={`note-row ${selectedNoteId === note.id ? 'selected' : ''}`}
+                onClick={() => onSelectNote(note)}
+              >
+                <div className="note-row-main">
+                  <div className="note-row-title">
+                    {note.is_pinned && <span className="pin-badge">Pinned</span>}
+                    <strong>{note.title || 'Untitled'}</strong>
+                  </div>
+                  <p>{preview || 'No content yet'}</p>
+                  <span>{formatDate(note.updated_at)}</span>
                 </div>
-                <p>{note.content || 'No content yet'}</p>
-                <span>{formatDate(note.updated_at)}</span>
-              </div>
-              <div className="note-row-actions" onClick={(event) => event.stopPropagation()}>
-                <button type="button" onClick={() => onTogglePin(note)}>
-                  {note.is_pinned ? 'Unpin' : 'Pin'}
-                </button>
-                <button type="button" className="danger" onClick={() => onDeleteNote(note)}>
-                  Delete
-                </button>
-              </div>
-            </article>
-          ))
+                <div className="note-row-actions" onClick={(event) => event.stopPropagation()}>
+                  <button type="button" onClick={() => onTogglePin(note)}>
+                    {note.is_pinned ? 'Unpin' : 'Pin'}
+                  </button>
+                  <button type="button" className="danger" onClick={() => onDeleteNote(note)}>
+                    Delete
+                  </button>
+                </div>
+              </article>
+            );
+          })
         )}
       </div>
     </aside>

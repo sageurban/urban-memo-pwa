@@ -1,17 +1,38 @@
 -- Urban Memo Supabase schema
 -- Run this in Supabase Dashboard > SQL Editor.
--- Includes notes, folders, MP3 metadata, and private Supabase Storage access policies.
+-- Includes notes, nested folders with colors, rich text content, MP3 metadata, and private Supabase Storage policies.
 
 create extension if not exists pgcrypto;
 
 create table if not exists public.folders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  parent_id uuid references public.folders(id) on delete set null,
   name text not null,
+  color text not null default '#f4f0e8',
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (user_id, name)
+  updated_at timestamptz not null default now()
 );
+
+alter table public.folders
+add column if not exists parent_id uuid references public.folders(id) on delete set null;
+
+alter table public.folders
+add column if not exists color text not null default '#f4f0e8';
+
+alter table public.folders
+alter column color set default '#f4f0e8';
+
+update public.folders
+set color = '#f4f0e8'
+where color is null or color = '';
+
+-- Older starter versions used unique(user_id, name), which blocks same folder names under different parents.
+alter table public.folders
+  drop constraint if exists folders_user_id_name_key;
+
+create unique index if not exists folders_user_parent_name_unique_idx
+on public.folders (user_id, coalesce(parent_id, '00000000-0000-0000-0000-000000000000'::uuid), lower(name));
 
 create table if not exists public.notes (
   id uuid primary key default gen_random_uuid(),
@@ -41,8 +62,8 @@ create table if not exists public.audio_files (
   unique (file_path)
 );
 
-create index if not exists folders_user_name_idx
-on public.folders (user_id, name);
+create index if not exists folders_user_parent_idx
+on public.folders (user_id, parent_id, name);
 
 create index if not exists notes_user_updated_idx
 on public.notes (user_id, is_pinned desc, updated_at desc);

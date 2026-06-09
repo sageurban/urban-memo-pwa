@@ -10,6 +10,7 @@ type FolderFilter = 'all' | 'unfiled' | string;
 
 const AUDIO_BUCKET = 'note-audio';
 const SIGNED_URL_EXPIRES_IN = 60 * 60 * 24;
+const DEFAULT_FOLDER_COLOR = '#f4f0e8';
 
 function createLocalNote(userId: string, folderId: string | null): Note {
   const now = new Date().toISOString();
@@ -27,12 +28,14 @@ function createLocalNote(userId: string, folderId: string | null): Note {
   };
 }
 
-function createLocalFolder(userId: string, name: string): Folder {
+function createLocalFolder(userId: string, name: string, color: string, parentId: string | null): Folder {
   const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
     user_id: userId,
+    parent_id: parentId,
     name,
+    color: color || DEFAULT_FOLDER_COLOR,
     created_at: now,
     updated_at: now
   };
@@ -50,6 +53,30 @@ function sanitizeFileName(fileName: string) {
     .replace(/[^a-zA-Z0-9._-]/g, '_')
     .replace(/_+/g, '_')
     .slice(0, 120);
+}
+
+function stripHtml(value: string) {
+  if (!value) return '';
+  const element = document.createElement('div');
+  element.innerHTML = value;
+  return element.textContent ?? '';
+}
+
+function collectFolderAndDescendantIds(folderId: string, folders: Folder[]) {
+  const ids = new Set<string>([folderId]);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    folders.forEach((folder) => {
+      if (folder.parent_id && ids.has(folder.parent_id) && !ids.has(folder.id)) {
+        ids.add(folder.id);
+        changed = true;
+      }
+    });
+  }
+
+  return ids;
 }
 
 async function attachSignedUrls(files: AudioFile[]): Promise<AudioFile[]> {
@@ -86,21 +113,26 @@ export default function App() {
     return notes.find((note) => note.id === selectedNoteId) ?? null;
   }, [notes, selectedNoteId]);
 
+  const selectedFolderScope = useMemo(() => {
+    if (selectedFolderId === 'all' || selectedFolderId === 'unfiled') return null;
+    return collectFolderAndDescendantIds(selectedFolderId, folders);
+  }, [selectedFolderId, folders]);
+
   const filteredNotes = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
 
     return notes
       .filter((note) => {
         if (selectedFolderId === 'unfiled' && note.folder_id !== null) return false;
-        if (selectedFolderId !== 'all' && selectedFolderId !== 'unfiled' && note.folder_id !== selectedFolderId) return false;
+        if (selectedFolderScope && (!note.folder_id || !selectedFolderScope.has(note.folder_id))) return false;
         if (!keyword) return true;
-        return `${note.title} ${note.content}`.toLowerCase().includes(keyword);
+        return `${note.title} ${stripHtml(note.content)}`.toLowerCase().includes(keyword);
       })
       .sort((a, b) => {
         if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
         return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       });
-  }, [notes, selectedFolderId, searchTerm]);
+  }, [notes, selectedFolderId, selectedFolderScope, searchTerm]);
 
   const selectedNoteAudioFiles = useMemo(() => {
     if (!selectedNoteId) return [];
@@ -114,14 +146,18 @@ export default function App() {
       .from('folders')
       .select('*')
       .eq('user_id', session.user.id)
-      .order('name', { ascending: true });
+      .order('created_at', { ascending: true });
 
     if (error) {
       setErrorMessage(error.message);
       return;
     }
 
-    setFolders(data ?? []);
+    setFolders((data ?? []).map((folder) => ({
+      ...folder,
+      parent_id: folder.parent_id ?? null,
+      color: folder.color || DEFAULT_FOLDER_COLOR
+    })));
   }, [session?.user.id]);
 
   const fetchAudioFiles = useCallback(async () => {
@@ -215,17 +251,17 @@ export default function App() {
     setSelectedNoteId(filteredNotes[0]?.id ?? null);
   }, [filteredNotes, selectedNoteId]);
 
-  async function handleCreateFolder(name: string) {
+  async function handleCreateFolder(name: string, color: string, parentId: string | null) {
     if (!session?.user.id) return;
 
     setErrorMessage('');
-    const optimisticFolder = createLocalFolder(session.user.id, name);
-    setFolders((prev) => [...prev, optimisticFolder].sort((a, b) => a.name.localeCompare(b.name)));
+    const optimisticFolder = createLocalFolder(session.user.id, name, color, parentId);
+    setFolders((prev) => [...prev, optimisticFolder]);
     setSelectedFolderId(optimisticFolder.id);
 
     const { data, error } = await supabase
       .from('folders')
-      .insert({ user_id: session.user.id, name })
+      .insert({ user_id: session.user.id, name, color: color || DEFAULT_FOLDER_COLOR, parent_id: parentId })
       .select('*')
       .single();
 
@@ -240,12 +276,38 @@ export default function App() {
     setSelectedFolderId(data.id);
   }
 
+  async function handleUpdateFolder(folder: Folder, values: Partial<Pick<Folder, 'name' | 'color' | 'parent_id'>>) {
+    setErrorMessage('');
+    const now = new Date().toISOString();
+    const nextValues = { ...values, updated_at: now };
+
+    setFolders((prev) =>
+      prev.map((item) => (item.id === folder.id ? { ...item, ...values, updated_at: now } : item))
+    );
+
+    const { error } = await supabase
+      .from('folders')
+      .update(nextValues)
+      .eq('id', folder.id);
+
+    if (error) {
+      setErrorMessage(error.message);
+      refreshWorkspace();
+    }
+  }
+
   async function handleDeleteFolder(folder: Folder) {
-    const ok = window.confirm(`Delete folder "${folder.name}"?\n메모는 삭제되지 않고 Unfiled로 이동됩니다.`);
+    const ok = window.confirm(
+      `Delete folder "${folder.name}"?\n직접 들어있는 메모는 Unfiled로 이동됩니다. 하위 폴더는 최상위 폴더로 이동됩니다.`
+    );
     if (!ok) return;
 
     setErrorMessage('');
-    setFolders((prev) => prev.filter((item) => item.id !== folder.id));
+    setFolders((prev) =>
+      prev
+        .filter((item) => item.id !== folder.id)
+        .map((item) => (item.parent_id === folder.id ? { ...item, parent_id: null } : item))
+    );
     setNotes((prev) => prev.map((note) => (note.folder_id === folder.id ? { ...note, folder_id: null } : note)));
     if (selectedFolderId === folder.id) setSelectedFolderId('all');
 
@@ -476,6 +538,7 @@ export default function App() {
     <div className="app-shell">
       <NoteList
         notes={filteredNotes}
+        allNotes={notes}
         folders={folders}
         selectedNoteId={selectedNoteId}
         selectedFolderId={selectedFolderId}
@@ -483,6 +546,7 @@ export default function App() {
         onSearchTermChange={setSearchTerm}
         onSelectFolder={setSelectedFolderId}
         onCreateFolder={handleCreateFolder}
+        onUpdateFolder={handleUpdateFolder}
         onDeleteFolder={handleDeleteFolder}
         onSelectNote={(note) => setSelectedNoteId(note.id)}
         onCreateNote={handleCreateNote}

@@ -13,6 +13,8 @@ type NoteEditorProps = {
   onDeleteAudio: (audioFile: AudioFile) => void;
 };
 
+type FolderOption = Folder & { depth: number };
+
 function statusText(status: SaveStatus) {
   switch (status) {
     case 'saving':
@@ -32,6 +34,55 @@ function formatBytes(bytes: number | null) {
   return `${mb.toFixed(mb >= 10 ? 1 : 2)} MB`;
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function normalizeContentForEditor(content: string) {
+  if (!content) return '';
+  if (/<[a-z][\s\S]*>/i.test(content)) return content;
+  return escapeHtml(content).replace(/\n/g, '<br>');
+}
+
+function getTextFromHtml(html: string) {
+  const element = document.createElement('div');
+  element.innerHTML = html;
+  return element.textContent ?? '';
+}
+
+function buildFolderOptions(folders: Folder[]): FolderOption[] {
+  const byParent = new Map<string | null, Folder[]>();
+
+  folders.forEach((folder) => {
+    const key = folder.parent_id ?? null;
+    const list = byParent.get(key) ?? [];
+    list.push(folder);
+    byParent.set(key, list);
+  });
+
+  byParent.forEach((list) => {
+    list.sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+  const result: FolderOption[] = [];
+
+  function visit(parentId: string | null, depth: number) {
+    const children = byParent.get(parentId) ?? [];
+    children.forEach((folder) => {
+      result.push({ ...folder, depth });
+      visit(folder.id, depth + 1);
+    });
+  }
+
+  visit(null, 0);
+  return result;
+}
+
 export default function NoteEditor({
   note,
   folders,
@@ -45,16 +96,21 @@ export default function NoteEditor({
 }: NoteEditorProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [textColor, setTextColor] = useState('#f5f5f5');
+  const [fontSize, setFontSize] = useState('3');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setTitle(note?.title ?? '');
-    setContent(note?.content ?? '');
+    const nextContent = normalizeContentForEditor(note?.content ?? '');
+    setContent(nextContent);
+    if (editorRef.current) editorRef.current.innerHTML = nextContent;
   }, [note?.id]);
 
   useEffect(() => {
     if (!note) return;
-    if (title === note.title && content === note.content) return;
+    if (title === note.title && content === normalizeContentForEditor(note.content)) return;
 
     const timer = window.setTimeout(() => {
       onUpdateNote(note.id, { title, content });
@@ -64,8 +120,21 @@ export default function NoteEditor({
   }, [title, content, note, onUpdateNote]);
 
   const wordCount = useMemo(() => {
-    return content.trim() ? content.trim().split(/\s+/).length : 0;
+    const text = getTextFromHtml(content).trim();
+    return text ? text.split(/\s+/).length : 0;
   }, [content]);
+
+  const folderOptions = useMemo(() => buildFolderOptions(folders), [folders]);
+
+  function syncEditorContent() {
+    setContent(editorRef.current?.innerHTML ?? '');
+  }
+
+  function applyCommand(command: 'foreColor' | 'fontSize', value: string) {
+    editorRef.current?.focus();
+    document.execCommand(command, false, value);
+    syncEditorContent();
+  }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     if (!note) return;
@@ -85,7 +154,7 @@ export default function NoteEditor({
   }
 
   return (
-    <section className="editor">
+    <section className="editor rich-editor-layout">
       <div className="editor-toolbar">
         <span className={`save-status ${saveStatus}`}>{statusText(saveStatus)}</span>
         <span>{wordCount} words</span>
@@ -99,9 +168,9 @@ export default function NoteEditor({
             onChange={(event) => onChangeNoteFolder(note.id, event.target.value || null)}
           >
             <option value="">Unfiled</option>
-            {folders.map((folder) => (
+            {folderOptions.map((folder) => (
               <option key={folder.id} value={folder.id}>
-                {folder.name}
+                {`${'— '.repeat(folder.depth)}${folder.name}`}
               </option>
             ))}
           </select>
@@ -115,11 +184,51 @@ export default function NoteEditor({
         placeholder="Title"
       />
 
-      <textarea
-        className="content-input"
-        value={content}
-        onChange={(event) => setContent(event.target.value)}
-        placeholder="Start writing..."
+      <div className="format-toolbar" aria-label="Text formatting tools">
+        <label>
+          Text color
+          <input
+            type="color"
+            value={textColor}
+            onChange={(event) => {
+              setTextColor(event.target.value);
+              applyCommand('foreColor', event.target.value);
+            }}
+          />
+        </label>
+
+        <label>
+          Text size
+          <select
+            value={fontSize}
+            onChange={(event) => {
+              setFontSize(event.target.value);
+              applyCommand('fontSize', event.target.value);
+            }}
+          >
+            <option value="2">Small</option>
+            <option value="3">Normal</option>
+            <option value="5">Large</option>
+            <option value="7">Huge</option>
+          </select>
+        </label>
+
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand('fontSize', '3')}>
+          Normal
+        </button>
+      </div>
+
+      <div
+        ref={editorRef}
+        className="content-editor"
+        contentEditable
+        role="textbox"
+        aria-label="Note content"
+        data-placeholder="Start writing..."
+        onInput={syncEditorContent}
+        onBlur={syncEditorContent}
+        suppressContentEditableWarning
+        dangerouslySetInnerHTML={{ __html: content }}
       />
 
       <section className="audio-panel">
